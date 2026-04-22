@@ -2,6 +2,7 @@
 
 import { format, parseISO } from "date-fns";
 import { ko } from "date-fns/locale";
+import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import type { VisitCell } from "@/lib/supabase/calendar-queries";
 import { createClient } from "@/lib/supabase/client";
@@ -17,44 +18,83 @@ type Props = {
 };
 
 export function VisitMemoModal({ visit, onClose, onSaved }: Props) {
+  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
-  const [storePosition, setStorePosition] = useState(visit.store_position ?? "");
-  const [customerCount, setCustomerCount] = useState(visit.customer_count ?? "");
-  const [salesTrend, setSalesTrend] = useState(visit.sales_trend ?? "");
-  const [activity, setActivity] = useState(visit.activity ?? "");
-  const [displayType, setDisplayType] = useState(visit.display_type ?? "");
-  const [photoPaths, setPhotoPaths] = useState<string[]>(visit.photo_paths ?? []);
+  const [storePosition, setStorePosition] = useState("");
+  const [customerCount, setCustomerCount] = useState("");
+  const [salesTrend, setSalesTrend] = useState("");
+  const [activity, setActivity] = useState("");
+  const [displayType, setDisplayType] = useState("");
+  const [photoPaths, setPhotoPaths] = useState<string[]>([]);
+  const [originalPaths, setOriginalPaths] = useState<string[]>([]);
   const [photoUrls, setPhotoUrls] = useState<Record<string, string>>({});
   const [uploading, setUploading] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  // 기존 사진의 signed URL 로드
+  // 모달 열릴 때 DB에서 최신 데이터 직접 조회 → prop 캐시 문제 회피
   useEffect(() => {
-    if (photoPaths.length === 0) return;
     const supabase = createClient();
     (async () => {
-      const { data } = await supabase.storage
-        .from("visit-photos")
-        .createSignedUrls(photoPaths, 60 * 60);
-      const map: Record<string, string> = {};
-      for (const item of data ?? []) {
-        if (item.path && item.signedUrl) map[item.path] = item.signedUrl;
-      }
-      setPhotoUrls(map);
-    })();
-    // 최초 렌더링 시점의 경로 기준 1회만 로드 (이후 업로드는 개별 처리)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+      setLoading(true);
+      const { data, error: fetchErr } = await supabase
+        .from("visits")
+        .select(
+          "store_position, customer_count, sales_trend, activity, display_type, photo_paths",
+        )
+        .eq("id", visit.id)
+        .maybeSingle();
 
-  // ESC로 닫기
+      if (fetchErr) {
+        setError(`메모 조회 실패: ${fetchErr.message}`);
+        setLoading(false);
+        return;
+      }
+
+      const row = (data ?? {}) as {
+        store_position?: string | null;
+        customer_count?: string | null;
+        sales_trend?: string | null;
+        activity?: string | null;
+        display_type?: string | null;
+        photo_paths?: string[] | null;
+      };
+      setStorePosition(row.store_position ?? "");
+      setCustomerCount(row.customer_count ?? "");
+      setSalesTrend(row.sales_trend ?? "");
+      setActivity(row.activity ?? "");
+      setDisplayType(row.display_type ?? "");
+      const paths = row.photo_paths ?? [];
+      setPhotoPaths(paths);
+      setOriginalPaths(paths);
+
+      // signed URL 발급
+      if (paths.length > 0) {
+        const { data: urlData } = await supabase.storage
+          .from("visit-photos")
+          .createSignedUrls(paths, 60 * 60);
+        const map: Record<string, string> = {};
+        for (const item of urlData ?? []) {
+          if (item.path && item.signedUrl) map[item.path] = item.signedUrl;
+        }
+        setPhotoUrls(map);
+      } else {
+        setPhotoUrls({});
+      }
+      setLoading(false);
+    })();
+  }, [visit.id]);
+
+  // ESC로 닫기 (orphan 정리 포함)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") handleClose();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [photoPaths, originalPaths]);
 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? []);
@@ -111,13 +151,8 @@ export function VisitMemoModal({ visit, onClose, onSaved }: Props) {
     setUploading(false);
   }
 
-  async function handleRemovePhoto(path: string) {
-    if (!confirm("이 사진을 삭제할까요?")) return;
-    const res = await removeVisitPhoto(path);
-    if (res?.error) {
-      setError(res.error);
-      return;
-    }
+  // ✕ 버튼: 로컬 상태에서만 제거 — 저장 누르기 전까지는 DB/Storage에 반영 안 됨
+  function handleRemovePhoto(path: string) {
     setPhotoPaths((prev) => prev.filter((p) => p !== path));
     setPhotoUrls((prev) => {
       const next = { ...prev };
@@ -142,16 +177,33 @@ export function VisitMemoModal({ visit, onClose, onSaved }: Props) {
         setError(res.error);
         return;
       }
+
+      // DB 업데이트 성공 → 원본에 있었는데 지금은 빠진 경로만 Storage에서 삭제
+      const toDelete = originalPaths.filter((p) => !photoPaths.includes(p));
+      for (const path of toDelete) {
+        await removeVisitPhoto(path);
+      }
+
       onSaved?.();
+      router.refresh();
       onClose();
     });
+  }
+
+  // 취소/X 닫기: 새로 업로드만 하고 저장 안 한 사진은 Storage에서 정리 (orphan 방지)
+  async function handleClose() {
+    const orphans = photoPaths.filter((p) => !originalPaths.includes(p));
+    for (const path of orphans) {
+      await removeVisitPhoto(path);
+    }
+    onClose();
   }
 
   return (
     <div
       role="dialog"
       aria-modal="true"
-      onClick={onClose}
+      onClick={handleClose}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-6"
     >
       <div
@@ -171,7 +223,7 @@ export function VisitMemoModal({ visit, onClose, onSaved }: Props) {
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleClose}
             aria-label="닫기"
             className="text-neutral-500 hover:text-neutral-900"
           >
@@ -180,6 +232,11 @@ export function VisitMemoModal({ visit, onClose, onSaved }: Props) {
         </header>
 
         <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
+          {loading && (
+            <p className="text-center text-xs text-neutral-400">
+              기존 메모 불러오는 중…
+            </p>
+          )}
           <Field label="매장 입점 위치">
             <input
               value={storePosition}
@@ -285,7 +342,7 @@ export function VisitMemoModal({ visit, onClose, onSaved }: Props) {
         <footer className="flex items-center justify-end gap-2 border-t border-neutral-200 bg-neutral-50 px-5 py-3">
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleClose}
             className="rounded-md border border-neutral-300 bg-white px-4 py-1.5 text-sm text-neutral-700 hover:bg-neutral-50"
           >
             취소
@@ -293,7 +350,7 @@ export function VisitMemoModal({ visit, onClose, onSaved }: Props) {
           <button
             type="button"
             onClick={handleSave}
-            disabled={isPending || uploading}
+            disabled={isPending || uploading || loading}
             className="rounded-md bg-neutral-900 px-4 py-1.5 text-sm font-medium text-white disabled:opacity-50"
           >
             {isPending ? "저장 중…" : "저장"}
