@@ -10,6 +10,7 @@ import type {
 } from "@/lib/supabase/calendar-queries";
 import { addVisit, deleteVisit } from "@/app/actions/visits";
 import { brandColor } from "@/lib/brandColor";
+import { VisitMemoModal } from "./VisitMemoModal";
 
 type Props = {
   date: Date | null;
@@ -36,6 +37,7 @@ export function VisitPanel({
   const [regionGroupId, setRegionGroupId] = useState<string | null>(null);
   const [sigungu, setSigungu] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [memoVisit, setMemoVisit] = useState<VisitCell | null>(null);
 
   // 매장 목록에 실제로 등록된 브랜드만 — 매장 0개인 브랜드는 단계에서 숨김
   const availableBrands = useMemo(() => {
@@ -163,29 +165,58 @@ export function VisitPanel({
           <ul className="space-y-1.5">
             {visits.map((v) => {
               const c = brandColor(v.store?.brand?.id);
+              const hasMemo =
+                !!v.store_position ||
+                !!v.customer_count ||
+                !!v.sales_trend ||
+                !!v.activity ||
+                !!v.display_type ||
+                (v.photo_paths?.length ?? 0) > 0;
               return (
                 <li
                   key={v.id}
-                  className="group flex items-center gap-2 rounded-lg border border-neutral-100 px-2.5 py-2 hover:border-neutral-200"
+                  className="group flex items-center gap-2 rounded-lg border border-neutral-100 px-2.5 py-2 hover:border-neutral-300"
                 >
-                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-[10px] font-medium tabular-nums text-neutral-600">
-                    {v.visit_order}
-                  </span>
-                  <span className={`h-2 w-2 shrink-0 rounded-full ${c.dot}`} aria-hidden />
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm text-neutral-900">
-                      {v.store?.name ?? "-"}
+                  <button
+                    type="button"
+                    onClick={() => setMemoVisit(v)}
+                    className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                  >
+                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-[10px] font-medium tabular-nums text-neutral-600">
+                      {v.visit_order}
+                    </span>
+                    <span
+                      className={`h-2 w-2 shrink-0 rounded-full ${c.dot}`}
+                      aria-hidden
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className="truncate text-sm text-neutral-900">
+                          {v.store?.name ?? "-"}
+                        </span>
+                        {hasMemo && (
+                          <span
+                            title="메모 있음"
+                            className="text-[10px] text-neutral-400"
+                          >
+                            📝
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex gap-1 text-[10px] text-neutral-500">
+                        {v.store?.brand && <span>{v.store.brand.name}</span>}
+                        {v.store?.region_group && (
+                          <span>· {v.store.region_group.name}</span>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex gap-1 text-[10px] text-neutral-500">
-                      {v.store?.brand && <span>{v.store.brand.name}</span>}
-                      {v.store?.region_group && (
-                        <span>· {v.store.region_group.name}</span>
-                      )}
-                    </div>
-                  </div>
+                  </button>
                   <button
                     disabled={isPending}
-                    onClick={() => handleDelete(v.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDelete(v.id);
+                    }}
                     className="text-xs text-neutral-400 opacity-0 transition hover:text-red-600 group-hover:opacity-100 disabled:opacity-50"
                     aria-label="삭제"
                   >
@@ -291,6 +322,14 @@ export function VisitPanel({
         </div>
         {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
       </section>
+
+      {memoVisit && (
+        <VisitMemoModal
+          visit={memoVisit}
+          onClose={() => setMemoVisit(null)}
+          onSaved={onChange}
+        />
+      )}
     </aside>
   );
 }

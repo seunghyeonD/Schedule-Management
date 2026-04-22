@@ -4,6 +4,12 @@ export type VisitCell = {
   id: string;
   visit_date: string;
   visit_order: number;
+  store_position: string | null;
+  customer_count: string | null;
+  sales_trend: string | null;
+  activity: string | null;
+  display_type: string | null;
+  photo_paths: string[];
   store: {
     id: string;
     name: string;
@@ -23,32 +29,32 @@ export async function getVisitsInRange(
   } = await supabase.auth.getUser();
   if (!user) return [];
 
-  // 0006 마이그레이션 안 돼 있을 수도 있으니 deleted_at 포함 쿼리 실패 시 폴백
-  const withDeletedAt = await supabase
-    .from("visits")
-    .select(
-      `id, visit_date, visit_order,
+  // 0006/0009 마이그레이션 안 돼 있을 수도 있으니 확장 컬럼 포함 쿼리 실패 시 폴백
+  const fullSelect = `id, visit_date, visit_order,
+       store_position, customer_count, sales_trend, activity, display_type, photo_paths,
        store:stores(
          id, name, deleted_at,
          brand:brands(id, name),
          region_group:region_groups(id, name)
-       )`,
-    )
+       )`;
+
+  const withAll = await supabase
+    .from("visits")
+    .select(fullSelect)
     .eq("user_id", user.id)
     .gte("visit_date", fromDate)
     .lte("visit_date", toDate)
     .order("visit_date")
     .order("visit_order");
 
-  if (!withDeletedAt.error) {
-    const rows = (withDeletedAt.data ?? []) as unknown as VisitCell[];
-    // 매장이 없거나 soft-delete된 방문은 캘린더에서 숨김 (매장 목록에 등록된 항목만)
+  if (!withAll.error) {
+    const rows = (withAll.data ?? []) as unknown as VisitCell[];
     return rows.filter((v) => v.store && !v.store.deleted_at);
   }
 
   console.warn(
-    "[getVisitsInRange] deleted_at 쿼리 실패 (0006 미실행?) — 기본 쿼리로 폴백:",
-    withDeletedAt.error.message,
+    "[getVisitsInRange] 확장 컬럼 쿼리 실패 (0006/0009 미실행?) — 기본 쿼리로 폴백:",
+    withAll.error.message,
   );
   const { data, error } = await supabase
     .from("visits")
@@ -67,7 +73,16 @@ export async function getVisitsInRange(
     .order("visit_order");
 
   if (error) throw error;
-  return (data ?? []) as unknown as VisitCell[];
+  // 메모 필드는 기본값으로 채움
+  return (data ?? []).map((r) => ({
+    ...(r as unknown as VisitCell),
+    store_position: null,
+    customer_count: null,
+    sales_trend: null,
+    activity: null,
+    display_type: null,
+    photo_paths: [],
+  })) as unknown as VisitCell[];
 }
 
 export type StorePicker = {

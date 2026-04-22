@@ -89,6 +89,63 @@ export async function deleteVisit(visitId: string) {
   return { ok: true };
 }
 
+const memoSchema = z.object({
+  visit_id: z.string().uuid(),
+  store_position: z.string().max(200).nullable(),
+  customer_count: z.string().max(50).nullable(),
+  sales_trend: z.string().max(500).nullable(),
+  activity: z.string().max(2000).nullable(),
+  display_type: z.string().max(200).nullable(),
+  photo_paths: z.array(z.string().max(500)).max(10),
+});
+
+export async function updateVisitMemo(input: z.input<typeof memoSchema>) {
+  const parsed = memoSchema.safeParse(input);
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message };
+
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "로그인이 필요합니다" };
+
+  const { error } = await supabase
+    .from("visits")
+    .update({
+      store_position: parsed.data.store_position,
+      customer_count: parsed.data.customer_count,
+      sales_trend: parsed.data.sales_trend,
+      activity: parsed.data.activity,
+      display_type: parsed.data.display_type,
+      photo_paths: parsed.data.photo_paths,
+    })
+    .eq("id", parsed.data.visit_id)
+    .eq("user_id", user.id);
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/");
+  return { ok: true };
+}
+
+// 모달에서 사진 제거 시 Storage에서도 지움 (DB의 photo_paths 업데이트는 저장 시 일괄 반영)
+export async function removeVisitPhoto(path: string) {
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "로그인이 필요합니다" };
+
+  // 본인 폴더가 아니면 거부 (Storage RLS가 재차 검증)
+  if (!path.startsWith(`${user.id}/`)) {
+    return { error: "권한이 없습니다" };
+  }
+
+  const { error } = await supabase.storage.from("visit-photos").remove([path]);
+  if (error) return { error: error.message };
+  return { ok: true };
+}
+
 export async function reorderVisit(
   visitId: string,
   direction: "up" | "down",
