@@ -26,12 +26,14 @@ export default async function Home() {
   return (
     <>
       <AppHeader />
-      <main className="mx-auto max-w-7xl px-6 py-8">
-        <h1 className="text-2xl font-semibold text-neutral-900">캘린더</h1>
-        <p className="mt-1 text-sm text-neutral-500">
+      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
+        <h1 className="text-xl font-semibold text-neutral-900 sm:text-2xl">
+          캘린더
+        </h1>
+        <p className="mt-1 text-xs text-neutral-500 sm:text-sm">
           날짜를 클릭해 방문을 등록하세요.
         </p>
-        <div className="mt-6">
+        <div className="mt-4 sm:mt-6">
           <CalendarPage
             brands={brands}
             regionGroups={regionGroups}
