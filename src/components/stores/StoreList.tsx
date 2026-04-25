@@ -87,9 +87,12 @@ export function StoreList({ stores }: { stores: StoreWithRelations[] }) {
       ) : (
         <ul className="divide-y divide-neutral-100">
           {filtered.map((s) => (
-            <li key={s.id} className="flex items-start justify-between py-3">
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
+            <li
+              key={s.id}
+              className="flex items-start justify-between gap-2 py-3"
+            >
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-1.5">
                   {s.brand && (
                     <span className="rounded bg-neutral-100 px-1.5 py-0.5 text-xs text-neutral-600">
                       {s.brand.name}
