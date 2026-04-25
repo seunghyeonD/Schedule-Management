@@ -105,6 +105,21 @@ export function VisitMemoModal({ visit, onClose, onSaved }: Props) {
       return;
     }
 
+    // 파일 검증: 이미지 MIME 타입 + 10MB 이하 + 안전한 확장자
+    const ALLOWED_MIME = ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"];
+    const ALLOWED_EXT = ["jpg", "jpeg", "png", "webp", "heic", "heif"];
+    const MAX_SIZE = 10 * 1024 * 1024; // 10MB
+    for (const file of files) {
+      if (!ALLOWED_MIME.includes(file.type)) {
+        setError(`이미지만 업로드 가능합니다 (jpg, png, webp, heic). 거부: ${file.name}`);
+        return;
+      }
+      if (file.size > MAX_SIZE) {
+        setError(`파일 크기는 10MB 이하만 가능합니다: ${file.name}`);
+        return;
+      }
+    }
+
     setError(null);
     setUploading(true);
     const supabase = createClient();
@@ -119,7 +134,9 @@ export function VisitMemoModal({ visit, onClose, onSaved }: Props) {
 
     const newPaths: string[] = [];
     for (const file of files) {
-      const ext = file.name.split(".").pop()?.toLowerCase() ?? "jpg";
+      const rawExt = file.name.split(".").pop()?.toLowerCase() ?? "";
+      // 확장자 화이트리스트 (파일명 신뢰하지 않음)
+      const ext = ALLOWED_EXT.includes(rawExt) ? rawExt : "jpg";
       const path = `${user.id}/${visit.id}/${Date.now()}-${Math.random()
         .toString(36)
         .slice(2, 8)}.${ext}`;
