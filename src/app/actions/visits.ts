@@ -109,6 +109,15 @@ export async function updateVisitMemo(input: z.input<typeof memoSchema>) {
   } = await supabase.auth.getUser();
   if (!user) return { error: "로그인이 필요합니다" };
 
+  // photo_paths의 모든 경로가 본인 폴더({user_id}/{visit_id}/...) 소속인지 검증
+  // Storage RLS가 읽기는 막지만, 임의 경로를 DB에 저장하지 못하도록 입력 단계에서 차단
+  const expectedPrefix = `${user.id}/${parsed.data.visit_id}/`;
+  for (const path of parsed.data.photo_paths) {
+    if (!path.startsWith(expectedPrefix)) {
+      return { error: "사진 경로가 올바르지 않습니다" };
+    }
+  }
+
   const { error } = await supabase
     .from("visits")
     .update({
