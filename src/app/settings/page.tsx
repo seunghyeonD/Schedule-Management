@@ -19,24 +19,30 @@ export default async function SettingsPage() {
   return (
     <>
       <AppHeader />
-      <main className="mx-auto max-w-3xl px-6 py-10">
-        <h1 className="text-2xl font-semibold text-neutral-900">설정</h1>
+      <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6 sm:py-10">
+        <h1 className="text-xl font-semibold text-neutral-900 sm:text-2xl">
+          설정
+        </h1>
 
-        <section className="mt-6 rounded-2xl border border-neutral-200 bg-white p-5">
+        <section className="mt-4 rounded-2xl border border-neutral-200 bg-white p-4 sm:mt-6 sm:p-5">
           <h2 className="text-sm font-semibold text-neutral-800">내 정보</h2>
           <dl className="mt-3 space-y-1 text-sm text-neutral-600">
             <div className="flex gap-3">
-              <dt className="w-16 text-neutral-400">이름</dt>
-              <dd>{profile?.display_name ?? "-"}</dd>
+              <dt className="w-16 shrink-0 text-neutral-400">이름</dt>
+              <dd className="min-w-0 truncate">
+                {profile?.display_name ?? "-"}
+              </dd>
             </div>
             <div className="flex gap-3">
-              <dt className="w-16 text-neutral-400">이메일</dt>
-              <dd>{profile?.email ?? user?.email}</dd>
+              <dt className="w-16 shrink-0 text-neutral-400">이메일</dt>
+              <dd className="min-w-0 truncate">
+                {profile?.email ?? user?.email}
+              </dd>
             </div>
           </dl>
         </section>
 
-        <section className="mt-6 rounded-2xl border border-neutral-200 bg-white p-5">
+        <section className="mt-4 rounded-2xl border border-neutral-200 bg-white p-4 sm:mt-6 sm:p-5">
           <div className="mb-4">
             <h2 className="text-sm font-semibold text-neutral-800">
               Google 스프레드시트 연동
