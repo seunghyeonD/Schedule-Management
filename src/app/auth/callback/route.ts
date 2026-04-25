@@ -1,10 +1,22 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
+// 오픈 리다이렉트 방지: 같은 origin 내부로 향하는 상대 경로만 허용
+function safeNextPath(raw: string | null): string {
+  if (!raw) return "/";
+  // 1) 반드시 "/"로 시작
+  // 2) "//"로 시작하면 protocol-relative URL → 외부 도메인 가능, 거부
+  // 3) "/\\"도 같은 위험
+  if (!raw.startsWith("/")) return "/";
+  if (raw.startsWith("//")) return "/";
+  if (raw.startsWith("/\\")) return "/";
+  return raw;
+}
+
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
-  const next = searchParams.get("next") ?? "/";
+  const next = safeNextPath(searchParams.get("next"));
 
   if (code) {
     const supabase = createClient();
