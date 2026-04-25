@@ -12,7 +12,42 @@ import {
   writeValues,
 } from "@/lib/google/sheets";
 
-const HEADERS = ["순번", "지역", "시/군/구", "매장명", "방문 일자", "방문 횟수"];
+const SUMMARY_HEADERS = [
+  "순번",
+  "지역",
+  "시/군/구",
+  "매장명",
+  "방문 일자",
+  "방문 횟수",
+  "최근 입점 위치",
+  "최근 유입 고객수",
+  "최근 진열 형태",
+  "최근 판매 동향",
+  "최근 활동사항",
+  "사진",
+];
+
+const LOG_HEADERS = [
+  "방문 일자",
+  "지역",
+  "시/군/구",
+  "매장명",
+  "입점 위치",
+  "유입 고객수",
+  "진열 형태",
+  "판매 동향",
+  "활동사항",
+  "사진",
+];
+
+function logTabName(brandName: string) {
+  return `${brandName} (로그)`;
+}
+
+function photoCountText(paths: string[] | null | undefined): string {
+  const n = paths?.length ?? 0;
+  return n > 0 ? `사진 ${n}장` : "";
+}
 
 async function getUserAccessToken() {
   const supabase = createClient();
@@ -265,10 +300,11 @@ export async function ensureBrandSheetTab(brandName: string) {
         ?.spreadsheet_managed ?? false;
 
     const accessToken = await getGoogleAccessToken(profile.google_refresh_token);
+    const logName = logTabName(name);
     await syncSpreadsheetTabs(
       accessToken,
       profile.spreadsheet_id,
-      [name],
+      [name, logName],
       managed,
     );
 
@@ -277,7 +313,13 @@ export async function ensureBrandSheetTab(brandName: string) {
       { accessToken },
       profile.spreadsheet_id,
       `'${name}'!A1`,
-      [HEADERS],
+      [SUMMARY_HEADERS],
+    );
+    await writeValues(
+      { accessToken },
+      profile.spreadsheet_id,
+      `'${logName}'!A1`,
+      [LOG_HEADERS],
     );
 
     return { ok: true };
@@ -330,18 +372,35 @@ export async function removeBrandSheetTab(brandName: string) {
       sheets: { properties: { sheetId: number; title: string } }[];
     };
 
-    const target = meta.sheets.find((s) => s.properties.title === name);
-    if (!target) return { ok: true };
+    const targetTitles = new Set([name, logTabName(name)]);
+    const targets = meta.sheets.filter((s) =>
+      targetTitles.has(s.properties.title),
+    );
+    if (targets.length === 0) return { ok: true };
 
-    // Google Sheets는 최소 1개 탭 유지 규칙이 있어, 마지막 탭이면 삭제 대신 비우기만
-    if (meta.sheets.length <= 1) {
-      await clearValues({ accessToken }, profile.spreadsheet_id, `'${name}'!A:Z`);
-      return { ok: true };
+    // Google Sheets 최소 1개 탭 유지 규칙: 전체 삭제하면 안 되므로
+    // 모두 지우면 시트가 비는 경우엔 마지막 1개를 비우기만 하고 둠
+    const remainingAfter = meta.sheets.length - targets.length;
+    const toDelete =
+      remainingAfter < 1 ? targets.slice(0, targets.length - 1) : targets;
+    const toClear = remainingAfter < 1 ? [targets[targets.length - 1]] : [];
+
+    if (toDelete.length > 0) {
+      await batchUpdate(
+        { accessToken },
+        profile.spreadsheet_id,
+        toDelete.map((t) => ({
+          deleteSheet: { sheetId: t.properties.sheetId },
+        })),
+      );
     }
-
-    await batchUpdate({ accessToken }, profile.spreadsheet_id, [
-      { deleteSheet: { sheetId: target.properties.sheetId } },
-    ]);
+    for (const t of toClear) {
+      await clearValues(
+        { accessToken },
+        profile.spreadsheet_id,
+        `'${t.properties.title}'!A:Z`,
+      );
+    }
 
     return { ok: true };
   } catch (e) {
@@ -350,7 +409,7 @@ export async function removeBrandSheetTab(brandName: string) {
   }
 }
 
-// 방문 기록을 시트 포맷으로 동기화
+// 방문 기록을 시트 포맷으로 동기화 (요약 탭 + 로그 탭)
 export async function syncVisitsToSheets() {
   try {
     const { accessToken, supabase, userId, profile } = await getUserAccessToken();
@@ -373,20 +432,63 @@ export async function syncVisitsToSheets() {
       );
     if (sErr) throw sErr;
 
-    // 본인 방문 전체 조회
-    const { data: visits, error: vErr } = await supabase
+    // 본인 방문 전체 조회 (메모 포함, 0009 미실행 시 폴백)
+    type VisitRow = {
+      store_id: string;
+      visit_date: string;
+      store_position: string | null;
+      customer_count: string | null;
+      sales_trend: string | null;
+      activity: string | null;
+      display_type: string | null;
+      photo_paths: string[] | null;
+    };
+
+    let visits: VisitRow[] = [];
+    const fullVisitSelect =
+      "store_id, visit_date, store_position, customer_count, sales_trend, activity, display_type, photo_paths";
+    const withMemo = await supabase
       .from("visits")
-      .select("store_id, visit_date")
+      .select(fullVisitSelect)
       .eq("user_id", userId)
       .order("visit_date");
-    if (vErr) throw vErr;
+    if (!withMemo.error) {
+      visits = (withMemo.data ?? []) as unknown as VisitRow[];
+    } else {
+      console.warn(
+        "[syncVisitsToSheets] 메모 컬럼 쿼리 실패 (0009 미실행?) — 기본 컬럼만으로 폴백:",
+        withMemo.error.message,
+      );
+      const basic = await supabase
+        .from("visits")
+        .select("store_id, visit_date")
+        .eq("user_id", userId)
+        .order("visit_date");
+      if (basic.error) throw basic.error;
+      visits = (basic.data ?? []).map((v) => ({
+        store_id: v.store_id,
+        visit_date: v.visit_date,
+        store_position: null,
+        customer_count: null,
+        sales_trend: null,
+        activity: null,
+        display_type: null,
+        photo_paths: null,
+      }));
+    }
 
-    // store_id -> visit 날짜 목록
-    const datesByStore = new Map<string, string[]>();
-    for (const v of visits ?? []) {
-      const arr = datesByStore.get(v.store_id) ?? [];
-      arr.push(v.visit_date);
-      datesByStore.set(v.store_id, arr);
+    // store_id -> visits (날짜 오름차순)
+    const visitsByStore = new Map<string, VisitRow[]>();
+    for (const v of visits) {
+      const arr = visitsByStore.get(v.store_id) ?? [];
+      arr.push(v);
+      visitsByStore.set(v.store_id, arr);
+    }
+    // 각 매장별로 visit_date 오름차순 정렬 보장
+    for (const arr of Array.from(visitsByStore.values())) {
+      arr.sort((a: VisitRow, b: VisitRow) =>
+        a.visit_date.localeCompare(b.visit_date),
+      );
     }
 
     // 브랜드별로 매장 그룹핑
@@ -398,7 +500,6 @@ export async function syncVisitsToSheets() {
       storeName: string;
     };
     const byBrand = new Map<string, StoreRow[]>();
-    // 모든 브랜드에 빈 리스트 초기화 (매장 0개여도 탭 생성)
     for (const b of allBrands ?? []) {
       byBrand.set(b.name, []);
     }
@@ -426,19 +527,22 @@ export async function syncVisitsToSheets() {
     }
 
     const brandNames = Array.from(byBrand.keys());
+    const allTabNames: string[] = [];
+    for (const b of brandNames) {
+      allTabNames.push(b, logTabName(b));
+    }
 
-    // 탭 동기화: 없는 브랜드 탭 추가 + (앱 관리 시트에 한해) 기본 "시트1" 정리
+    // 탭 동기화: 빠진 탭 추가 + (앱 관리 시트에 한해) 기본 "시트1" 정리
     await syncSpreadsheetTabs(
       accessToken,
       profile.spreadsheet_id,
-      brandNames,
+      allTabNames,
       profile.spreadsheet_managed ?? false,
     );
 
     // 각 브랜드 탭에 데이터 쓰기
     for (const brandName of brandNames) {
       const storeRows = byBrand.get(brandName)!;
-      // 지역 그룹 → 시/군/구 → 매장명 순 정렬 (기존 시트 관례)
       storeRows.sort((a, b) => {
         return (
           a.regionGroup.localeCompare(b.regionGroup, "ko") ||
@@ -447,23 +551,31 @@ export async function syncVisitsToSheets() {
         );
       });
 
-      const rows: (string | number)[][] = [HEADERS];
+      // ───────── 요약 탭: 매장당 1행 ─────────
+      const summaryRows: (string | number)[][] = [SUMMARY_HEADERS];
       storeRows.forEach((s, idx) => {
-        const dates = (datesByStore.get(s.storeId) ?? [])
-          .map((d) => format(parseISO(d), "M/d"))
+        const storeVisits = visitsByStore.get(s.storeId) ?? [];
+        const dates = storeVisits
+          .map((v) => format(parseISO(v.visit_date), "M/d"))
           .join(", ");
-        const count = datesByStore.get(s.storeId)?.length ?? 0;
-        rows.push([
+        const count = storeVisits.length;
+        const latest = storeVisits[storeVisits.length - 1]; // 최신 방문
+        summaryRows.push([
           idx + 1,
           s.regionGroup,
           s.sigungu,
           s.storeName,
           dates,
           count,
+          latest?.store_position ?? "",
+          latest?.customer_count ?? "",
+          latest?.display_type ?? "",
+          latest?.sales_trend ?? "",
+          latest?.activity ?? "",
+          photoCountText(latest?.photo_paths ?? null),
         ]);
       });
 
-      // 탭 초기화 후 작성
       await clearValues(
         { accessToken },
         profile.spreadsheet_id,
@@ -473,7 +585,71 @@ export async function syncVisitsToSheets() {
         { accessToken },
         profile.spreadsheet_id,
         `'${brandName}'!A1`,
-        rows,
+        summaryRows,
+      );
+
+      // ───────── 로그 탭: 방문당 1행 (최신순) ─────────
+      type LogEntry = {
+        date: string;
+        regionGroup: string;
+        sigungu: string;
+        storeName: string;
+        storePosition: string;
+        customerCount: string;
+        displayType: string;
+        salesTrend: string;
+        activity: string;
+        photo: string;
+      };
+
+      const logEntries: LogEntry[] = [];
+      for (const s of storeRows) {
+        const storeVisits = visitsByStore.get(s.storeId) ?? [];
+        for (const v of storeVisits) {
+          logEntries.push({
+            date: v.visit_date,
+            regionGroup: s.regionGroup,
+            sigungu: s.sigungu,
+            storeName: s.storeName,
+            storePosition: v.store_position ?? "",
+            customerCount: v.customer_count ?? "",
+            displayType: v.display_type ?? "",
+            salesTrend: v.sales_trend ?? "",
+            activity: v.activity ?? "",
+            photo: photoCountText(v.photo_paths),
+          });
+        }
+      }
+      // 최신 방문이 위로 가도록 내림차순
+      logEntries.sort((a, b) => b.date.localeCompare(a.date));
+
+      const logRows: (string | number)[][] = [LOG_HEADERS];
+      for (const e of logEntries) {
+        logRows.push([
+          format(parseISO(e.date), "yyyy-MM-dd"),
+          e.regionGroup,
+          e.sigungu,
+          e.storeName,
+          e.storePosition,
+          e.customerCount,
+          e.displayType,
+          e.salesTrend,
+          e.activity,
+          e.photo,
+        ]);
+      }
+
+      const logName = logTabName(brandName);
+      await clearValues(
+        { accessToken },
+        profile.spreadsheet_id,
+        `'${logName}'!A:Z`,
+      );
+      await writeValues(
+        { accessToken },
+        profile.spreadsheet_id,
+        `'${logName}'!A1`,
+        logRows,
       );
     }
 
