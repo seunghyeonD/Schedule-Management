@@ -71,8 +71,8 @@ export function CalendarPage({
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_380px]">
       <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white">
-        <div className="flex items-center justify-between border-b border-neutral-100 px-4 py-3">
-          <div className="flex items-center gap-2">
+        <div className="flex items-center justify-between gap-2 border-b border-neutral-100 px-3 py-2.5 sm:px-4 sm:py-3">
+          <div className="flex items-center gap-1 sm:gap-2">
             <button
               onClick={() => setMonth((d) => subMonths(d, 1))}
               className="flex h-8 w-8 items-center justify-center rounded-md border border-neutral-200 text-sm text-neutral-600 hover:bg-neutral-50"
@@ -80,7 +80,7 @@ export function CalendarPage({
             >
               ←
             </button>
-            <h2 className="min-w-[130px] text-center text-base font-semibold tabular-nums text-neutral-900">
+            <h2 className="min-w-[100px] text-center text-sm font-semibold tabular-nums text-neutral-900 sm:min-w-[130px] sm:text-base">
               {format(month, "yyyy년 M월", { locale: ko })}
             </h2>
             <button
@@ -140,7 +140,7 @@ export function CalendarPage({
               <button
                 key={key}
                 onClick={() => setSelected(day)}
-                className={`group relative min-h-[108px] border-b border-r border-neutral-100 p-2 text-left transition ${
+                className={`group relative min-h-[72px] border-b border-r border-neutral-100 p-1.5 text-left transition sm:min-h-[108px] sm:p-2 ${
                   isSelected
                     ? "bg-blue-50 ring-2 ring-inset ring-blue-400"
                     : "hover:bg-neutral-50"
@@ -148,7 +148,7 @@ export function CalendarPage({
               >
                 <div className="flex items-center">
                   <span
-                    className={`flex h-6 min-w-6 items-center justify-center rounded-full text-xs tabular-nums ${
+                    className={`flex h-5 min-w-5 items-center justify-center rounded-full text-[11px] tabular-nums sm:h-6 sm:min-w-6 sm:text-xs ${
                       isToday
                         ? "bg-neutral-900 font-semibold text-white"
                         : !inMonth
@@ -165,33 +165,59 @@ export function CalendarPage({
                 </div>
 
                 {dayVisits.length > 0 && (
-                  <ul className="mt-1 space-y-0.5 pl-3">
-                    {dayVisits.slice(0, 4).map((v) => {
-                      const c = brandColor(v.store?.brand?.id);
-                      return (
-                        <li
-                          key={v.id}
-                          className="flex items-center gap-1.5 text-[11px] leading-tight text-neutral-700"
-                        >
-                          <span
-                            className={`h-1.5 w-1.5 shrink-0 rounded-full ${c.dot}`}
-                            aria-hidden
-                          />
-                          <span className="shrink-0 text-[10px] tabular-nums text-neutral-400">
-                            {v.visit_order}
-                          </span>
-                          <span className="truncate">
-                            {v.store?.name ?? "-"}
-                          </span>
+                  <>
+                    {/* 모바일: 점 + 카운트 */}
+                    <div className="mt-1.5 flex items-center gap-1 sm:hidden">
+                      <div className="flex flex-wrap gap-1">
+                        {dayVisits.slice(0, 4).map((v) => {
+                          const c = brandColor(v.store?.brand?.id);
+                          return (
+                            <span
+                              key={v.id}
+                              className={`block h-2 w-2 shrink-0 rounded-full ${c.dot}`}
+                              aria-hidden
+                            />
+                          );
+                        })}
+                      </div>
+                      {dayVisits.length > 4 && (
+                        <span className="text-[10px] font-medium leading-none text-neutral-500">
+                          +{dayVisits.length - 4}
+                        </span>
+                      )}
+                      <span className="ml-auto text-[10px] font-semibold text-neutral-400">
+                        {dayVisits.length}
+                      </span>
+                    </div>
+                    {/* 데스크탑: 매장명까지 */}
+                    <ul className="mt-1 hidden space-y-0.5 pl-3 sm:block">
+                      {dayVisits.slice(0, 4).map((v) => {
+                        const c = brandColor(v.store?.brand?.id);
+                        return (
+                          <li
+                            key={v.id}
+                            className="flex items-center gap-1.5 text-[11px] leading-tight text-neutral-700"
+                          >
+                            <span
+                              className={`h-1.5 w-1.5 shrink-0 rounded-full ${c.dot}`}
+                              aria-hidden
+                            />
+                            <span className="shrink-0 text-[10px] tabular-nums text-neutral-400">
+                              {v.visit_order}
+                            </span>
+                            <span className="truncate">
+                              {v.store?.name ?? "-"}
+                            </span>
+                          </li>
+                        );
+                      })}
+                      {dayVisits.length > 4 && (
+                        <li className="text-[10px] text-neutral-400">
+                          +{dayVisits.length - 4}개 더
                         </li>
-                      );
-                    })}
-                    {dayVisits.length > 4 && (
-                      <li className="text-[10px] text-neutral-400">
-                        +{dayVisits.length - 4}개 더
-                      </li>
-                    )}
-                  </ul>
+                      )}
+                    </ul>
+                  </>
                 )}
               </button>
             );
