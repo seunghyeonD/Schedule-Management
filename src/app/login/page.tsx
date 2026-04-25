@@ -33,8 +33,8 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-neutral-50">
-      <div className="w-full max-w-sm rounded-2xl border border-neutral-200 bg-white p-8 shadow-sm">
+    <main className="flex min-h-screen items-center justify-center bg-neutral-50 px-4 py-6">
+      <div className="w-full max-w-sm rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm sm:p-8">
         <h1 className="text-xl font-semibold text-neutral-900">일정 관리</h1>
         <p className="mt-2 text-sm text-neutral-500">
           구글 계정으로 로그인하세요.
