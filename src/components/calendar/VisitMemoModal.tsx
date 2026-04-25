@@ -204,11 +204,11 @@ export function VisitMemoModal({ visit, onClose, onSaved }: Props) {
       role="dialog"
       aria-modal="true"
       onClick={handleClose}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-6"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center sm:px-4 sm:py-6"
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="flex max-h-[95vh] w-full max-w-lg flex-col overflow-hidden rounded-xl bg-white shadow-xl"
+        className="flex max-h-[92vh] w-full flex-col overflow-hidden rounded-t-2xl bg-white shadow-xl sm:max-h-[95vh] sm:max-w-lg sm:rounded-xl"
       >
         <header className="flex items-center justify-between border-b border-neutral-200 px-5 py-3">
           <div className="min-w-0">
