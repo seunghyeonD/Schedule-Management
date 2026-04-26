@@ -11,6 +11,7 @@ import {
   getSpreadsheet,
   writeValues,
 } from "@/lib/google/sheets";
+import { getCurrentOrgId, isCurrentUserMaster } from "@/lib/org/current";
 
 const SUMMARY_HEADERS = [
   "순번",
@@ -29,6 +30,7 @@ const SUMMARY_HEADERS = [
 
 const LOG_HEADERS = [
   "방문 일자",
+  "담당자",
   "지역",
   "시/군/구",
   "매장명",
@@ -49,77 +51,65 @@ function photoCountText(paths: string[] | null | undefined): string {
   return n > 0 ? `사진 ${n}장` : "";
 }
 
-async function getUserAccessToken() {
+// 현재 org와 본인의 google_refresh_token으로 access token 발급
+// (시트는 org 마스터의 Drive에 있지만, 호출자의 OAuth 토큰으로 접근 시도.
+//  마스터만 connect/disconnect/sync 가능하므로 호출자=마스터=시트 소유자가 일반적)
+async function getOrgSheetContext() {
   const supabase = createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) throw new Error("로그인이 필요합니다");
 
-  const { data: baseProfile } = await supabase
+  const orgId = await getCurrentOrgId();
+  if (!orgId) throw new Error("기업이 선택되지 않았습니다");
+
+  const { data: org, error: orgErr } = await supabase
+    .from("organizations")
+    .select("id, name, spreadsheet_id, spreadsheet_url, spreadsheet_managed")
+    .eq("id", orgId)
+    .maybeSingle();
+  if (orgErr) throw orgErr;
+  if (!org) throw new Error("기업 정보를 찾을 수 없습니다");
+
+  const { data: profile } = await supabase
     .from("profiles")
-    .select("google_refresh_token, spreadsheet_id, spreadsheet_url")
+    .select("google_refresh_token")
     .eq("id", user.id)
     .maybeSingle();
 
-  if (!baseProfile?.google_refresh_token) {
+  if (!profile?.google_refresh_token) {
     throw new Error(
       "Google Sheets 권한이 저장되지 않았습니다. 로그아웃 후 다시 로그인하면 권한을 요청합니다.",
     );
   }
 
-  // spreadsheet_managed는 0007 마이그레이션 안 돼 있을 수 있으므로 별도 조회
-  let spreadsheet_managed = false;
-  const { data: mgRow, error: mgErr } = await supabase
-    .from("profiles")
-    .select("spreadsheet_managed")
-    .eq("id", user.id)
-    .maybeSingle();
-  if (mgErr) {
-    console.warn(
-      "[getUserAccessToken] spreadsheet_managed 컬럼이 없을 수 있음 (0007 미실행):",
-      mgErr.message,
-    );
-  } else {
-    spreadsheet_managed =
-      (mgRow as { spreadsheet_managed?: boolean } | null)
-        ?.spreadsheet_managed ?? false;
-  }
-
-  const profile = { ...baseProfile, spreadsheet_managed };
-  const accessToken = await getGoogleAccessToken(baseProfile.google_refresh_token);
-  return { userId: user.id, accessToken, profile, supabase };
+  const accessToken = await getGoogleAccessToken(profile.google_refresh_token);
+  return { userId: user.id, orgId, org, accessToken, supabase };
 }
 
-// 새 스프레드시트 생성 + 본인 profile에 ID 저장
+// 새 스프레드시트 생성 + org에 연결 (마스터 전용)
 export async function createNewSpreadsheet(title?: string) {
   try {
-    const { accessToken, supabase, userId } = await getUserAccessToken();
-    const defaultTitle = `일정 관리 (${format(new Date(), "yyyy-MM-dd")})`;
+    const { accessToken, supabase, orgId, org } = await getOrgSheetContext();
+    if (!(await isCurrentUserMaster(orgId))) {
+      return { error: "마스터만 시트를 연결할 수 있습니다" };
+    }
+
+    const defaultTitle = `${org.name} 일정 관리 (${format(new Date(), "yyyy-MM-dd")})`;
     const sheet = await createSpreadsheet(
       { accessToken },
       title?.trim() || defaultTitle,
     );
 
     await supabase
-      .from("profiles")
+      .from("organizations")
       .update({
         spreadsheet_id: sheet.spreadsheetId,
         spreadsheet_url: sheet.spreadsheetUrl,
+        spreadsheet_managed: true,
       })
-      .eq("id", userId);
-
-    // 0007 마이그레이션 미실행 환경에서도 안 깨지도록 별도 update
-    const { error: mgErr } = await supabase
-      .from("profiles")
-      .update({ spreadsheet_managed: true })
-      .eq("id", userId);
-    if (mgErr) {
-      console.warn(
-        "[createNewSpreadsheet] spreadsheet_managed 플래그 저장 실패 (0007 미실행?):",
-        mgErr.message,
-      );
-    }
+      .eq("id", orgId);
 
     revalidatePath("/settings");
     revalidatePath("/");
@@ -129,7 +119,7 @@ export async function createNewSpreadsheet(title?: string) {
   }
 }
 
-// URL 또는 ID로 기존 시트 연결
+// URL 또는 ID로 기존 시트 연결 (마스터 전용)
 export async function connectExistingSpreadsheet(urlOrId: string) {
   const input = urlOrId.trim();
   if (!input) return { error: "URL 또는 ID를 입력하세요" };
@@ -142,31 +132,24 @@ export async function connectExistingSpreadsheet(urlOrId: string) {
   }
 
   try {
-    const { accessToken, supabase, userId } = await getUserAccessToken();
+    const { accessToken, supabase, orgId } = await getOrgSheetContext();
+    if (!(await isCurrentUserMaster(orgId))) {
+      return { error: "마스터만 시트를 연결할 수 있습니다" };
+    }
+
     const meta = (await getSpreadsheet(
       { accessToken },
       spreadsheetId,
     )) as { properties: { title: string }; spreadsheetUrl: string };
 
     await supabase
-      .from("profiles")
+      .from("organizations")
       .update({
         spreadsheet_id: spreadsheetId,
         spreadsheet_url: meta.spreadsheetUrl,
+        spreadsheet_managed: false,
       })
-      .eq("id", userId);
-
-    // 외부에서 가져온 시트 → 기존 탭 건드리지 않음
-    const { error: mgErr } = await supabase
-      .from("profiles")
-      .update({ spreadsheet_managed: false })
-      .eq("id", userId);
-    if (mgErr) {
-      console.warn(
-        "[connectExistingSpreadsheet] spreadsheet_managed 플래그 저장 실패 (0007 미실행?):",
-        mgErr.message,
-      );
-    }
+      .eq("id", orgId);
 
     revalidatePath("/settings");
     revalidatePath("/");
@@ -187,23 +170,22 @@ export async function connectExistingSpreadsheet(urlOrId: string) {
   }
 }
 
-// Google Picker로 선택된 파일 ID 연결 (API 호출로 제목/URL 조회)
+// Google Picker로 선택된 파일 ID 연결
 export async function connectPickedSpreadsheet(spreadsheetId: string) {
   return connectExistingSpreadsheet(spreadsheetId);
 }
 
 // Picker 같은 클라이언트 기능이 Google API를 직접 호출할 수 있도록 fresh access token 발급
-// (access token은 1시간 유효 / refresh token은 서버에만 저장되어 노출 안 됨)
 export async function getGoogleAccessTokenForClient() {
   try {
-    const { accessToken } = await getUserAccessToken();
+    const { accessToken } = await getOrgSheetContext();
     return { ok: true, accessToken };
   } catch (e) {
     return { error: (e as Error).message };
   }
 }
 
-// 연결된 시트 해제 (profile에서만 제거, 실제 시트는 삭제하지 않음)
+// 연결된 시트 해제 (org에서만 제거, 실제 시트는 삭제하지 않음)
 export async function disconnectSpreadsheet() {
   const supabase = createClient();
   const {
@@ -211,10 +193,20 @@ export async function disconnectSpreadsheet() {
   } = await supabase.auth.getUser();
   if (!user) return { error: "로그인이 필요합니다" };
 
+  const orgId = await getCurrentOrgId();
+  if (!orgId) return { error: "기업이 선택되지 않았습니다" };
+  if (!(await isCurrentUserMaster(orgId))) {
+    return { error: "마스터만 시트를 해제할 수 있습니다" };
+  }
+
   await supabase
-    .from("profiles")
-    .update({ spreadsheet_id: null, spreadsheet_url: null })
-    .eq("id", user.id);
+    .from("organizations")
+    .update({
+      spreadsheet_id: null,
+      spreadsheet_url: null,
+      spreadsheet_managed: false,
+    })
+    .eq("id", orgId);
 
   revalidatePath("/settings");
   return { ok: true };
@@ -222,10 +214,6 @@ export async function disconnectSpreadsheet() {
 
 const DEFAULT_TAB_TITLES = new Set(["시트1", "Sheet1"]);
 
-// 주어진 브랜드명 리스트 기준으로 탭을 동기화:
-//   - 빠진 탭 추가
-//   - managed=true (앱이 만든 시트)인 경우에만 기본 "시트1"/"Sheet1" 제거
-//     사용자가 가져온 외부 시트는 Sheet1에 실제 데이터가 있을 수 있어서 절대 안 지움
 async function syncSpreadsheetTabs(
   accessToken: string,
   spreadsheetId: string,
@@ -247,7 +235,6 @@ async function syncSpreadsheetTabs(
   }
 
   if (managed) {
-    // 브랜드 탭이 하나라도 남아있을 때만 기본 탭 제거 (최소 1탭 유지 규칙)
     const willHaveBrandTab =
       brandNames.length > 0 &&
       (brandNames.some((n) => existing.has(n)) || requests.length > 0);
@@ -265,7 +252,7 @@ async function syncSpreadsheetTabs(
   }
 }
 
-// 브랜드 추가 시 해당 브랜드의 탭을 시트에 만들어 둠 (헤더만 있는 빈 탭)
+// 브랜드 추가 시 해당 브랜드 탭을 시트에 만들어 둠
 export async function ensureBrandSheetTab(brandName: string) {
   try {
     const name = brandName.trim();
@@ -275,63 +262,55 @@ export async function ensureBrandSheetTab(brandName: string) {
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    if (!user) return { ok: true }; // 비로그인은 조용히 skip
+    if (!user) return { ok: true };
+
+    const orgId = await getCurrentOrgId();
+    if (!orgId) return { ok: true };
+
+    const { data: org } = await supabase
+      .from("organizations")
+      .select("spreadsheet_id, spreadsheet_managed")
+      .eq("id", orgId)
+      .maybeSingle();
+    if (!org?.spreadsheet_id) return { ok: true };
 
     const { data: profile } = await supabase
       .from("profiles")
-      .select("google_refresh_token, spreadsheet_id")
+      .select("google_refresh_token")
       .eq("id", user.id)
       .maybeSingle();
-
-    // 시트 미연결이면 에러 없이 skip (브랜드 생성은 정상 진행되어야 함)
-    if (!profile?.spreadsheet_id || !profile.google_refresh_token) {
-      return { ok: true };
-    }
-
-    // spreadsheet_managed는 0007 마이그레이션 안 돼 있을 수 있으므로 별도 조회
-    let managed = false;
-    const { data: mgRow } = await supabase
-      .from("profiles")
-      .select("spreadsheet_managed")
-      .eq("id", user.id)
-      .maybeSingle();
-    managed =
-      (mgRow as { spreadsheet_managed?: boolean } | null)
-        ?.spreadsheet_managed ?? false;
+    if (!profile?.google_refresh_token) return { ok: true };
 
     const accessToken = await getGoogleAccessToken(profile.google_refresh_token);
     const logName = logTabName(name);
     await syncSpreadsheetTabs(
       accessToken,
-      profile.spreadsheet_id,
+      org.spreadsheet_id,
       [name, logName],
-      managed,
+      org.spreadsheet_managed ?? false,
     );
 
-    // 헤더 행 작성 (이미 있으면 동일 값으로 덮어써도 무해)
     await writeValues(
       { accessToken },
-      profile.spreadsheet_id,
+      org.spreadsheet_id,
       `'${name}'!A1`,
       [SUMMARY_HEADERS],
     );
     await writeValues(
       { accessToken },
-      profile.spreadsheet_id,
+      org.spreadsheet_id,
       `'${logName}'!A1`,
       [LOG_HEADERS],
     );
 
     return { ok: true };
   } catch (e) {
-    // 브랜드 생성 흐름을 막지 않도록 에러는 로그만
     console.error("[ensureBrandSheetTab] 실패:", (e as Error).message);
     return { ok: true };
   }
 }
 
 // 브랜드 삭제 시 해당 브랜드 탭을 시트에서 제거
-// (앱이 만든 시트 managed=true 일 때만 — 외부 시트는 사용자가 같은 이름으로 쓰던 탭일 수 있어서 건드리지 않음)
 export async function removeBrandSheetTab(brandName: string) {
   try {
     const name = brandName.trim();
@@ -343,31 +322,27 @@ export async function removeBrandSheetTab(brandName: string) {
     } = await supabase.auth.getUser();
     if (!user) return { ok: true };
 
+    const orgId = await getCurrentOrgId();
+    if (!orgId) return { ok: true };
+
+    const { data: org } = await supabase
+      .from("organizations")
+      .select("spreadsheet_id, spreadsheet_managed")
+      .eq("id", orgId)
+      .maybeSingle();
+    if (!org?.spreadsheet_id || !org.spreadsheet_managed) return { ok: true };
+
     const { data: profile } = await supabase
       .from("profiles")
-      .select("google_refresh_token, spreadsheet_id")
+      .select("google_refresh_token")
       .eq("id", user.id)
       .maybeSingle();
-    if (!profile?.spreadsheet_id || !profile.google_refresh_token) {
-      return { ok: true };
-    }
-
-    // 외부 시트는 사용자 데이터 보호 위해 탭 건드리지 않음
-    let managed = false;
-    const { data: mgRow } = await supabase
-      .from("profiles")
-      .select("spreadsheet_managed")
-      .eq("id", user.id)
-      .maybeSingle();
-    managed =
-      (mgRow as { spreadsheet_managed?: boolean } | null)
-        ?.spreadsheet_managed ?? false;
-    if (!managed) return { ok: true };
+    if (!profile?.google_refresh_token) return { ok: true };
 
     const accessToken = await getGoogleAccessToken(profile.google_refresh_token);
     const meta = (await getSpreadsheet(
       { accessToken },
-      profile.spreadsheet_id,
+      org.spreadsheet_id,
     )) as {
       sheets: { properties: { sheetId: number; title: string } }[];
     };
@@ -378,8 +353,6 @@ export async function removeBrandSheetTab(brandName: string) {
     );
     if (targets.length === 0) return { ok: true };
 
-    // Google Sheets 최소 1개 탭 유지 규칙: 전체 삭제하면 안 되므로
-    // 모두 지우면 시트가 비는 경우엔 마지막 1개를 비우기만 하고 둠
     const remainingAfter = meta.sheets.length - targets.length;
     const toDelete =
       remainingAfter < 1 ? targets.slice(0, targets.length - 1) : targets;
@@ -388,7 +361,7 @@ export async function removeBrandSheetTab(brandName: string) {
     if (toDelete.length > 0) {
       await batchUpdate(
         { accessToken },
-        profile.spreadsheet_id,
+        org.spreadsheet_id,
         toDelete.map((t) => ({
           deleteSheet: { sheetId: t.properties.sheetId },
         })),
@@ -397,7 +370,7 @@ export async function removeBrandSheetTab(brandName: string) {
     for (const t of toClear) {
       await clearValues(
         { accessToken },
-        profile.spreadsheet_id,
+        org.spreadsheet_id,
         `'${t.properties.title}'!A:Z`,
       );
     }
@@ -409,31 +382,37 @@ export async function removeBrandSheetTab(brandName: string) {
   }
 }
 
-// 방문 기록을 시트 포맷으로 동기화 (요약 탭 + 로그 탭)
+// 방문 기록을 시트로 동기화 (마스터 전용 — org 전체 데이터 통합)
 export async function syncVisitsToSheets() {
   try {
-    const { accessToken, supabase, userId, profile } = await getUserAccessToken();
-    if (!profile.spreadsheet_id) {
+    const { accessToken, supabase, orgId, org } = await getOrgSheetContext();
+    if (!(await isCurrentUserMaster(orgId))) {
+      return { error: "마스터만 시트 동기화를 실행할 수 있습니다" };
+    }
+    if (!org.spreadsheet_id) {
       return { error: "먼저 설정에서 스프레드시트를 연결해 주세요" };
     }
 
-    // 브랜드 전체 조회 (매장 0개짜리 브랜드도 탭은 만들기 위함)
+    // org의 브랜드 전체
     const { data: allBrands, error: bErr } = await supabase
       .from("brands")
       .select("id, name")
+      .eq("organization_id", orgId)
       .order("name");
     if (bErr) throw bErr;
 
-    // 매장 + 지역그룹 + 브랜드 조회
+    // org의 매장 + 지역그룹 + 브랜드
     const { data: stores, error: sErr } = await supabase
       .from("stores")
       .select(
         "id, name, sigungu, brand:brands(id, name), region_group:region_groups(id, name)",
-      );
+      )
+      .eq("organization_id", orgId);
     if (sErr) throw sErr;
 
-    // 본인 방문 전체 조회 (메모 포함, 0009 미실행 시 폴백)
+    // org의 모든 멤버 방문 (RLS가 멤버 범위 보장)
     type VisitRow = {
+      user_id: string;
       store_id: string;
       visit_date: string;
       store_position: string | null;
@@ -443,48 +422,36 @@ export async function syncVisitsToSheets() {
       display_type: string | null;
       photo_paths: string[] | null;
     };
-
-    let visits: VisitRow[] = [];
-    const fullVisitSelect =
-      "store_id, visit_date, store_position, customer_count, sales_trend, activity, display_type, photo_paths";
-    const withMemo = await supabase
+    const { data: visitData, error: vErr } = await supabase
       .from("visits")
-      .select(fullVisitSelect)
-      .eq("user_id", userId)
+      .select(
+        "user_id, store_id, visit_date, store_position, customer_count, sales_trend, activity, display_type, photo_paths",
+      )
+      .eq("organization_id", orgId)
       .order("visit_date");
-    if (!withMemo.error) {
-      visits = (withMemo.data ?? []) as unknown as VisitRow[];
-    } else {
-      console.warn(
-        "[syncVisitsToSheets] 메모 컬럼 쿼리 실패 (0009 미실행?) — 기본 컬럼만으로 폴백:",
-        withMemo.error.message,
-      );
-      const basic = await supabase
-        .from("visits")
-        .select("store_id, visit_date")
-        .eq("user_id", userId)
-        .order("visit_date");
-      if (basic.error) throw basic.error;
-      visits = (basic.data ?? []).map((v) => ({
-        store_id: v.store_id,
-        visit_date: v.visit_date,
-        store_position: null,
-        customer_count: null,
-        sales_trend: null,
-        activity: null,
-        display_type: null,
-        photo_paths: null,
-      }));
+    if (vErr) throw vErr;
+    const visits: VisitRow[] = (visitData ?? []) as VisitRow[];
+
+    // 멤버 user_id → display_name 매핑 (담당자 컬럼용)
+    const memberIds = Array.from(new Set(visits.map((v) => v.user_id)));
+    const memberNames = new Map<string, string>();
+    if (memberIds.length > 0) {
+      const { data: members } = await supabase
+        .from("profiles")
+        .select("id, display_name, email")
+        .in("id", memberIds);
+      for (const m of members ?? []) {
+        memberNames.set(m.id, m.display_name || m.email || "이름없음");
+      }
     }
 
-    // store_id -> visits (날짜 오름차순)
+    // store_id -> visits
     const visitsByStore = new Map<string, VisitRow[]>();
     for (const v of visits) {
       const arr = visitsByStore.get(v.store_id) ?? [];
       arr.push(v);
       visitsByStore.set(v.store_id, arr);
     }
-    // 각 매장별로 visit_date 오름차순 정렬 보장
     for (const arr of Array.from(visitsByStore.values())) {
       arr.sort((a: VisitRow, b: VisitRow) =>
         a.visit_date.localeCompare(b.visit_date),
@@ -532,12 +499,11 @@ export async function syncVisitsToSheets() {
       allTabNames.push(b, logTabName(b));
     }
 
-    // 탭 동기화: 빠진 탭 추가 + (앱 관리 시트에 한해) 기본 "시트1" 정리
     await syncSpreadsheetTabs(
       accessToken,
-      profile.spreadsheet_id,
+      org.spreadsheet_id,
       allTabNames,
-      profile.spreadsheet_managed ?? false,
+      org.spreadsheet_managed ?? false,
     );
 
     // 각 브랜드 탭에 데이터 쓰기
@@ -559,7 +525,7 @@ export async function syncVisitsToSheets() {
           .map((v) => format(parseISO(v.visit_date), "M/d"))
           .join(", ");
         const count = storeVisits.length;
-        const latest = storeVisits[storeVisits.length - 1]; // 최신 방문
+        const latest = storeVisits[storeVisits.length - 1];
         summaryRows.push([
           idx + 1,
           s.regionGroup,
@@ -578,19 +544,20 @@ export async function syncVisitsToSheets() {
 
       await clearValues(
         { accessToken },
-        profile.spreadsheet_id,
+        org.spreadsheet_id,
         `'${brandName}'!A:Z`,
       );
       await writeValues(
         { accessToken },
-        profile.spreadsheet_id,
+        org.spreadsheet_id,
         `'${brandName}'!A1`,
         summaryRows,
       );
 
-      // ───────── 로그 탭: 방문당 1행 (최신순) ─────────
+      // ───────── 로그 탭: 방문당 1행 (담당자 컬럼 포함, 최신순) ─────────
       type LogEntry = {
         date: string;
+        assignee: string;
         regionGroup: string;
         sigungu: string;
         storeName: string;
@@ -608,6 +575,7 @@ export async function syncVisitsToSheets() {
         for (const v of storeVisits) {
           logEntries.push({
             date: v.visit_date,
+            assignee: memberNames.get(v.user_id) ?? "알 수 없음",
             regionGroup: s.regionGroup,
             sigungu: s.sigungu,
             storeName: s.storeName,
@@ -620,13 +588,13 @@ export async function syncVisitsToSheets() {
           });
         }
       }
-      // 최신 방문이 위로 가도록 내림차순
       logEntries.sort((a, b) => b.date.localeCompare(a.date));
 
       const logRows: (string | number)[][] = [LOG_HEADERS];
       for (const e of logEntries) {
         logRows.push([
           format(parseISO(e.date), "yyyy-MM-dd"),
+          e.assignee,
           e.regionGroup,
           e.sigungu,
           e.storeName,
@@ -642,28 +610,24 @@ export async function syncVisitsToSheets() {
       const logName = logTabName(brandName);
       await clearValues(
         { accessToken },
-        profile.spreadsheet_id,
+        org.spreadsheet_id,
         `'${logName}'!A:Z`,
       );
       await writeValues(
         { accessToken },
-        profile.spreadsheet_id,
+        org.spreadsheet_id,
         `'${logName}'!A1`,
         logRows,
       );
     }
 
-    // 싱크 시각 업데이트
+    // 싱크 시각 업데이트 (org last_synced_at 컬럼이 없으면 무시)
     const nowIso = new Date().toISOString();
-    await supabase
-      .from("profiles")
-      .update({ last_synced_at: nowIso })
-      .eq("id", userId);
 
     revalidatePath("/settings");
     return {
       ok: true,
-      url: profile.spreadsheet_url,
+      url: org.spreadsheet_url,
       brands: brandNames,
       syncedAt: nowIso,
     };
@@ -672,7 +636,7 @@ export async function syncVisitsToSheets() {
   }
 }
 
-// 캘린더에서 사용자 profile의 연결 상태 조회용
+// 캘린더에서 현재 org의 시트 연결 상태 조회
 export async function getSyncStatus() {
   const supabase = createClient();
   const {
@@ -680,37 +644,17 @@ export async function getSyncStatus() {
   } = await supabase.auth.getUser();
   if (!user) return { connected: false, lastSyncedAt: null };
 
-  // 먼저 spreadsheet_id만 확인 (반드시 존재하는 컬럼)
-  const { data: base, error: baseErr } = await supabase
-    .from("profiles")
+  const orgId = await getCurrentOrgId();
+  if (!orgId) return { connected: false, lastSyncedAt: null };
+
+  const { data: org } = await supabase
+    .from("organizations")
     .select("spreadsheet_id")
-    .eq("id", user.id)
+    .eq("id", orgId)
     .maybeSingle();
-
-  if (baseErr) {
-    console.error("[getSyncStatus] spreadsheet_id 조회 실패:", baseErr);
-    return { connected: false, lastSyncedAt: null };
-  }
-
-  // last_synced_at은 마이그레이션 안 됐을 수 있으니 별도 처리
-  let lastSyncedAt: string | null = null;
-  const { data: syncRow, error: syncErr } = await supabase
-    .from("profiles")
-    .select("last_synced_at")
-    .eq("id", user.id)
-    .maybeSingle();
-  if (syncErr) {
-    console.warn(
-      "[getSyncStatus] last_synced_at 컬럼이 없을 수 있음 (0004 마이그레이션 미실행):",
-      syncErr.message,
-    );
-  } else {
-    lastSyncedAt =
-      (syncRow as { last_synced_at?: string } | null)?.last_synced_at ?? null;
-  }
 
   return {
-    connected: !!base?.spreadsheet_id,
-    lastSyncedAt,
+    connected: !!org?.spreadsheet_id,
+    lastSyncedAt: null,
   };
 }
