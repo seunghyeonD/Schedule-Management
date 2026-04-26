@@ -7,6 +7,7 @@ import {
   ensureBrandSheetTab,
   removeBrandSheetTab,
 } from "@/app/actions/sheets";
+import { getCurrentOrgId } from "@/lib/org/current";
 
 const brandSchema = z.object({
   name: z.string().trim().min(1, "브랜드명을 입력하세요").max(50),
@@ -24,9 +25,13 @@ export async function createBrand(formData: FormData) {
   } = await supabase.auth.getUser();
   if (!user) return { error: "로그인이 필요합니다" };
 
+  const orgId = await getCurrentOrgId();
+  if (!orgId) return { error: "기업이 선택되지 않았습니다" };
+
   const { error } = await supabase.from("brands").insert({
     name: parsed.data.name,
     created_by: user.id,
+    organization_id: orgId,
   });
 
   if (error) {
@@ -99,6 +104,9 @@ export async function createStore(input: z.input<typeof storeSchema>) {
   } = await supabase.auth.getUser();
   if (!user) return { error: "로그인이 필요합니다" };
 
+  const orgId = await getCurrentOrgId();
+  if (!orgId) return { error: "기업이 선택되지 않았습니다" };
+
   // 지역그룹이 제공되지 않았으면 sido+sigungu로 조회
   let regionGroupId = parsed.data.region_group_id ?? null;
   if (!regionGroupId && parsed.data.sido && parsed.data.sigungu) {
@@ -121,6 +129,7 @@ export async function createStore(input: z.input<typeof storeSchema>) {
     sigungu: parsed.data.sigungu ?? null,
     region_group_id: regionGroupId,
     created_by: user.id,
+    organization_id: orgId,
   });
 
   if (error) {
