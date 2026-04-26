@@ -1,11 +1,18 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { getCurrentOrgId } from "@/lib/org/current";
+import { getMyOrganizations } from "@/app/actions/organizations";
+import { OrgSwitcher } from "./OrgSwitcher";
 
 export default async function AppHeader() {
   const supabase = createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
+  const orgId = await getCurrentOrgId();
+  const orgs = user ? await getMyOrganizations() : [];
+  const currentOrg = orgs.find((o) => o.id === orgId) ?? null;
 
   return (
     <header className="border-b border-neutral-200 bg-white">
@@ -31,6 +38,7 @@ export default async function AppHeader() {
           </nav>
         </div>
         <div className="flex shrink-0 items-center gap-2 text-xs text-neutral-500 sm:gap-3">
+          {currentOrg && <OrgSwitcher orgs={orgs} currentOrgId={currentOrg.id} />}
           {user && (
             <span className="hidden max-w-[160px] truncate md:inline">
               {user.email}
