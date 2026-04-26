@@ -17,11 +17,17 @@ const geistMono = localFont({
 export const metadata: Metadata = {
   title: "일정 관리",
   description: "매장 방문 일정 관리",
+  appleWebApp: {
+    capable: true,
+    title: "일정 관리",
+    statusBarStyle: "default",
+  },
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
+  themeColor: "#2563eb",
   // 사용자 핀치 줌은 허용 (접근성). input 자동 줌은 globals.css에서 16px 강제로 해결.
 };
 
