@@ -654,6 +654,11 @@ export default function PrivacyPage() {
           </h2>
           <ul className="mt-2 list-disc space-y-1 pl-5">
             <li>2026-04-21: 최초 제정 및 시행</li>
+            <li>
+              2026-04-27: 멀티 테넌트(기업/워크스페이스) 기능 도입에 따른 개정 —
+              §1(처리 목적), §2(처리 항목), §4(보유 기간), §5-1(기업 단위 데이터
+              공유) 신설, §10(안전성 확보) 보강
+            </li>
           </ul>
         </article>
       </section>
