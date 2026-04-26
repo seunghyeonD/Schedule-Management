@@ -368,8 +368,22 @@ export default function TermsPage() {
           </p>
         </article>
 
+        <article>
+          <h2 className="text-base font-semibold text-neutral-900">
+            제24조 (개정 이력)
+          </h2>
+          <ul className="mt-2 list-disc space-y-1 pl-5">
+            <li>2026-04-21: 최초 제정 및 시행</li>
+            <li>
+              2026-04-27: 멀티 테넌트(기업/워크스페이스) 기능 도입에 따른 개정
+              — §2(용어) 보강, §10(서비스 제공) 갱신, §10의2(기업의 운영) 신설,
+              §16(콘텐츠 권리) 갱신, §17(해지) 갱신
+            </li>
+          </ul>
+        </article>
+
         <p className="mt-10 text-xs text-neutral-400">
-          부칙: 본 약관은 2026년 4월 21일부터 시행됩니다.
+          부칙: 본 약관은 2026년 4월 27일부터 시행됩니다.
         </p>
       </section>
     </main>
