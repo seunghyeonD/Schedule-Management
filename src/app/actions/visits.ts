@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { getCurrentOrgId } from "@/lib/org/current";
 
 const addVisitSchema = z.object({
   store_id: z.string().uuid(),
@@ -19,17 +20,23 @@ export async function addVisit(input: z.input<typeof addVisitSchema>) {
   } = await supabase.auth.getUser();
   if (!user) return { error: "로그인이 필요합니다" };
 
-  // 해당 날짜의 기존 방문 수를 세서 visit_order 자동 부여
+  const orgId = await getCurrentOrgId();
+  if (!orgId) return { error: "기업이 선택되지 않았습니다" };
+
+  // 같은 날짜에 같은 유저의 기존 방문 수를 세서 visit_order 자동 부여
+  // (visit_order는 멤버 개인 단위로 카운트)
   const { count } = await supabase
     .from("visits")
     .select("*", { count: "exact", head: true })
     .eq("user_id", user.id)
+    .eq("organization_id", orgId)
     .eq("visit_date", parsed.data.visit_date);
 
   const nextOrder = (count ?? 0) + 1;
 
   const { error } = await supabase.from("visits").insert({
     user_id: user.id,
+    organization_id: orgId,
     store_id: parsed.data.store_id,
     visit_date: parsed.data.visit_date,
     visit_order: nextOrder,
@@ -51,7 +58,7 @@ export async function deleteVisit(visitId: string) {
   // 삭제할 visit의 date와 order를 먼저 조회
   const { data: target } = await supabase
     .from("visits")
-    .select("visit_date, visit_order")
+    .select("visit_date, visit_order, organization_id")
     .eq("id", visitId)
     .eq("user_id", user.id)
     .maybeSingle();
@@ -64,12 +71,13 @@ export async function deleteVisit(visitId: string) {
 
   if (error) return { error: error.message };
 
-  // 같은 날짜에서 삭제된 visit보다 뒤에 있는 항목들의 순번을 하나씩 당김
+  // 같은 (user, org, 날짜)에서 삭제된 visit보다 뒤에 있는 항목들의 순번을 하나씩 당김
   if (target) {
     const { data: rest } = await supabase
       .from("visits")
       .select("id, visit_order")
       .eq("user_id", user.id)
+      .eq("organization_id", target.organization_id)
       .eq("visit_date", target.visit_date)
       .gt("visit_order", target.visit_order);
 
@@ -167,7 +175,7 @@ export async function reorderVisit(
 
   const { data: target } = await supabase
     .from("visits")
-    .select("id, visit_date, visit_order")
+    .select("id, visit_date, visit_order, organization_id")
     .eq("id", visitId)
     .eq("user_id", user.id)
     .maybeSingle();
@@ -182,6 +190,7 @@ export async function reorderVisit(
     .from("visits")
     .select("id")
     .eq("user_id", user.id)
+    .eq("organization_id", target.organization_id)
     .eq("visit_date", target.visit_date)
     .eq("visit_order", neighborOrder)
     .maybeSingle();
