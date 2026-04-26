@@ -1,6 +1,8 @@
+import Link from "next/link";
 import AppHeader from "@/components/AppHeader";
 import { SheetConnect } from "@/components/settings/SheetConnect";
 import { createClient } from "@/lib/supabase/server";
+import { getCurrentOrgId, isCurrentUserMaster } from "@/lib/org/current";
 
 export const dynamic = "force-dynamic";
 
@@ -12,9 +14,26 @@ export default async function SettingsPage() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("email, display_name, spreadsheet_id, spreadsheet_url, google_refresh_token")
+    .select("email, display_name, google_refresh_token")
     .eq("id", user!.id)
     .maybeSingle();
+
+  const orgId = await getCurrentOrgId();
+  const isMaster = orgId ? await isCurrentUserMaster(orgId) : false;
+
+  let orgInfo: {
+    name: string;
+    spreadsheet_id: string | null;
+    spreadsheet_url: string | null;
+  } | null = null;
+  if (orgId) {
+    const { data: org } = await supabase
+      .from("organizations")
+      .select("name, spreadsheet_id, spreadsheet_url")
+      .eq("id", orgId)
+      .maybeSingle();
+    if (org) orgInfo = org;
+  }
 
   return (
     <>
@@ -39,7 +58,28 @@ export default async function SettingsPage() {
                 {profile?.email ?? user?.email}
               </dd>
             </div>
+            {orgInfo && (
+              <div className="flex gap-3">
+                <dt className="w-16 shrink-0 text-neutral-400">현재 기업</dt>
+                <dd className="min-w-0 truncate">
+                  {orgInfo.name}{" "}
+                  <span className="text-xs text-neutral-400">
+                    ({isMaster ? "마스터" : "멤버"})
+                  </span>
+                </dd>
+              </div>
+            )}
           </dl>
+          {isMaster && (
+            <div className="mt-3 border-t border-neutral-100 pt-3">
+              <Link
+                href="/settings/members"
+                className="inline-flex items-center gap-1 text-xs font-medium text-neutral-700 hover:text-neutral-900"
+              >
+                멤버 관리 →
+              </Link>
+            </div>
+          )}
         </section>
 
         <section className="mt-4 rounded-2xl border border-neutral-200 bg-white p-4 sm:mt-6 sm:p-5">
@@ -48,14 +88,33 @@ export default async function SettingsPage() {
               Google 스프레드시트 연동
             </h2>
             <p className="mt-1 text-xs text-neutral-500">
-              방문 기록을 내 Google Drive의 스프레드시트로 동기화합니다.
+              {isMaster
+                ? "기업의 방문 기록을 마스터의 Google Drive 스프레드시트로 통합 동기화합니다."
+                : "마스터만 시트를 연결할 수 있습니다. 시트 동기화는 마스터가 실행합니다."}
             </p>
           </div>
-          <SheetConnect
-            spreadsheetId={profile?.spreadsheet_id ?? null}
-            spreadsheetUrl={profile?.spreadsheet_url ?? null}
-            hasGoogleToken={!!profile?.google_refresh_token}
-          />
+          {isMaster ? (
+            <SheetConnect
+              spreadsheetId={orgInfo?.spreadsheet_id ?? null}
+              spreadsheetUrl={orgInfo?.spreadsheet_url ?? null}
+              hasGoogleToken={!!profile?.google_refresh_token}
+            />
+          ) : (
+            <p className="text-xs text-neutral-500">
+              {orgInfo?.spreadsheet_url ? (
+                <a
+                  href={orgInfo.spreadsheet_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-600 underline"
+                >
+                  연결된 시트 보기
+                </a>
+              ) : (
+                "아직 시트가 연결되지 않았습니다."
+              )}
+            </p>
+          )}
         </section>
       </main>
     </>
