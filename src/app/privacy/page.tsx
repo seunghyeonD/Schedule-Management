@@ -16,7 +16,8 @@ export default function PrivacyPage() {
           개인정보처리방침
         </h1>
         <p className="mt-1 text-xs text-neutral-500">
-          공고일: 2026년 4월 14일 · 시행일: 2026년 4월 21일
+          공고일: 2026년 4월 21일 · 최종 개정일: 2026년 4월 27일 · 시행일:
+          2026년 4월 27일
         </p>
       </header>
 
@@ -44,6 +45,11 @@ export default function PrivacyPage() {
           <ul className="mt-2 list-disc space-y-1 pl-5">
             <li>회원 식별, 로그인 상태 유지, 본인 확인</li>
             <li>매장·방문 기록의 저장 및 Google Sheets/Drive로의 동기화</li>
+            <li>
+              기업(워크스페이스) 단위 협업 기능 제공 — 같은 기업 소속 회원 간
+              매장·방문 정보의 공유, 마스터 회원의 팀 활동 통계 조회, 초대
+              코드를 통한 멤버 관리
+            </li>
             <li>서비스 제공·운영에 관한 공지 및 문의 대응</li>
             <li>부정 이용 방지, 비인가 접속 차단, 서비스 안정성 확보</li>
             <li>서비스 개선을 위한 통계 분석 (비식별 정보에 한함)</li>
@@ -108,11 +114,26 @@ export default function PrivacyPage() {
                   </td>
                   <td className="border border-neutral-300 px-3 py-2">
                     브랜드명, 매장명, 매장 주소(도로명·지번), 시·도, 시·군·구,
-                    지역 그룹, 위·경도(선택), 방문 일자 및 메모
+                    지역 그룹, 위·경도(선택), 방문 일자, 방문 메모(매장 입점
+                    위치, 유입 고객수, 판매 동향, 활동사항, 진열 형태), 방문
+                    사진(이미지 파일)
                   </td>
                   <td className="border border-neutral-300 px-3 py-2">
                     서비스 이용상 필요
                   </td>
+                </tr>
+                <tr>
+                  <td className="border border-neutral-300 px-3 py-2">
+                    기업(워크스페이스) 정보
+                  </td>
+                  <td className="border border-neutral-300 px-3 py-2">
+                    기업 생성·가입 시
+                  </td>
+                  <td className="border border-neutral-300 px-3 py-2">
+                    기업명, 회원의 기업 내 역할(마스터/멤버), 가입 일시, 초대
+                    코드 발급·사용 기록
+                  </td>
+                  <td className="border border-neutral-300 px-3 py-2">필수</td>
                 </tr>
                 <tr>
                   <td className="border border-neutral-300 px-3 py-2">
@@ -194,10 +215,23 @@ export default function PrivacyPage() {
                 </tr>
                 <tr>
                   <td className="border border-neutral-300 px-3 py-2">
-                    매장·방문 기록
+                    매장·방문 기록·방문 사진
                   </td>
                   <td className="border border-neutral-300 px-3 py-2">
-                    회원 탈퇴 또는 회원의 삭제 요청 시 지체 없이 파기
+                    회원 탈퇴, 회원의 삭제 요청, 또는 마스터의 기업 삭제 시 지체
+                    없이 파기
+                  </td>
+                  <td className="border border-neutral-300 px-3 py-2">
+                    정보주체의 동의
+                  </td>
+                </tr>
+                <tr>
+                  <td className="border border-neutral-300 px-3 py-2">
+                    기업·멤버십·초대 코드 정보
+                  </td>
+                  <td className="border border-neutral-300 px-3 py-2">
+                    멤버 탈퇴 시 멤버십 정보 파기, 마스터의 기업 삭제 시 기업
+                    전체 정보 파기, 초대 코드는 만료 후(7일) 또는 사용 즉시 파기
                   </td>
                   <td className="border border-neutral-300 px-3 py-2">
                     정보주체의 동의
@@ -242,6 +276,50 @@ export default function PrivacyPage() {
             권한을 명시적으로 허용한 경우에만 작동하며, 이 경우에도 데이터는
             회원 본인의 Google Drive로만 전송됩니다. 운영자는 회원의 콘텐츠를
             운영자 외 제3자에게 제공하거나 판매하지 않습니다.
+          </p>
+        </article>
+
+        <article>
+          <h2 className="text-base font-semibold text-neutral-900">
+            5-1. 기업(워크스페이스) 단위 데이터 공유
+          </h2>
+          <p className="mt-2">
+            본 서비스는 영업 팀 단위 협업을 위해 &ldquo;기업&rdquo;
+            (워크스페이스) 개념을 제공합니다. 회원이 특정 기업의 마스터로
+            기업을 생성하거나, 마스터로부터 발급받은 초대 코드를 입력하여
+            기업의 멤버로 가입하는 경우, 동일 기업에 소속된 회원 간에는
+            서비스의 정상적 제공을 위하여 다음 정보가 상호 노출됩니다.
+          </p>
+          <ul className="mt-2 list-disc space-y-1 pl-5">
+            <li>
+              <strong>같은 기업의 모든 회원에게 공유되는 정보</strong>: 회원의
+              표시 이름(display name), 이메일, 기업 내 역할(마스터/멤버), 가입
+              일시
+            </li>
+            <li>
+              <strong>같은 기업의 모든 회원에게 공유되는 콘텐츠</strong>:
+              브랜드, 매장(매장명·주소·지역 그룹·위경도 포함), 방문 기록(방문
+              일자, 방문 메모 5개 항목, 첨부 사진), 방문을 등록한 회원의 식별
+              정보(담당자 표시)
+            </li>
+            <li>
+              <strong>마스터에게만 공유되는 정보</strong>: 멤버 목록 및 강제
+              퇴출 권한, 초대 코드 발급·폐기 권한, Google 스프레드시트 연결·
+              동기화 권한 (마스터의 Google Drive로 전송)
+            </li>
+          </ul>
+          <p className="mt-2 text-xs">
+            이 공유는 「개인정보 보호법」 제17조에서 정한 &ldquo;제3자
+            제공&rdquo;에 해당하지 않으며, 서비스 이용계약의 본질적인 구성요소로
+            제공됩니다. 회원이 자신의 정보가 다른 회원에게 노출되는 것을 원하지
+            않을 경우, 해당 기업에서 탈퇴하거나 가입하지 않음으로써 공유 범위를
+            통제할 수 있습니다.
+          </p>
+          <p className="mt-2 text-xs">
+            마스터가 Google 스프레드시트 동기화 기능을 활성화한 경우, 같은 기업
+            소속 멤버의 방문 기록(작성자 표시 포함)은 마스터의 Google Drive로
+            전송됩니다. 회원은 본 사실에 동의한 경우에 한하여 해당 기업에 가입할
+            수 있습니다.
           </p>
         </article>
 
@@ -443,7 +521,9 @@ export default function PrivacyPage() {
               <ul className="mt-1 list-disc space-y-1 pl-5">
                 <li>전송 구간 HTTPS/TLS 암호화</li>
                 <li>Google OAuth refresh token의 서버 측 보관 및 클라이언트 미노출</li>
-                <li>Supabase Row Level Security(RLS)를 통한 이용자별 데이터 격리</li>
+                <li>Supabase Row Level Security(RLS)를 통한 이용자별·기업별 데이터 격리. 회원은 본인이 소속된 기업의 데이터만 조회·수정할 수 있으며, 다른 기업의 데이터에는 접근 불가</li>
+                <li>방문 사진은 비공개(private) Storage 버킷에 저장되며 서명된 URL(signed URL)을 통해서만 일시적으로 접근 가능</li>
+                <li>업로드 파일에 대한 MIME 타입 화이트리스트(jpg/png/webp/heic) 및 용량 제한(10MB) 적용</li>
                 <li>비정상 접근 시도 차단 및 접근 로그 모니터링</li>
                 <li>보안 패치 및 의존성 업데이트의 지속적 적용</li>
               </ul>
@@ -562,8 +642,9 @@ export default function PrivacyPage() {
             18. 개인정보처리방침의 변경
           </h2>
           <ol className="mt-2 list-decimal space-y-1 pl-5">
-            <li>본 개인정보처리방침은 2026년 4월 21일부터 시행됩니다.</li>
+            <li>본 개인정보처리방침은 2026년 4월 27일부터 시행됩니다.</li>
             <li>법령·정책 또는 보안기술의 변경에 따라 내용의 추가·삭제 및 수정이 있을 시에는 시행 전 <strong>최소 7일 전(중대한 변경의 경우 30일 전)</strong>부터 서비스 공지사항을 통해 고지합니다.</li>
+            <li>중대한 변경(처리 목적 추가, 처리 항목 추가, 제3자 제공 추가, 기업 단위 데이터 공유 범위의 변경 등)의 경우 회원의 재동의를 요구할 수 있습니다.</li>
           </ol>
         </article>
 
