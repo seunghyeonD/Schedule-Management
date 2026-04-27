@@ -22,9 +22,9 @@ import {
 } from "@/lib/google/sheets";
 import { getCurrentOrgId, isCurrentUserMaster } from "@/lib/org/current";
 
-// 매장 사진 컬럼은 매장의 사진 수에 따라 가변. 그래서 헤더는 함수로 빌드.
-const LOG_HEADERS_BEFORE_PHOTOS = ["방문일자", "매장명"];
-const LOG_HEADERS_AFTER_PHOTOS = [
+// 매장 사진 / 방문 사진 둘 다 가변 컬럼. 헤더는 함수로 빌드.
+const LOG_HEADERS_BEFORE_STORE_PHOTOS = ["방문일자", "매장명"];
+const LOG_HEADERS_BETWEEN_PHOTOS = [
   "지역",
   "시/군/구",
   "담당자",
@@ -34,20 +34,39 @@ const LOG_HEADERS_AFTER_PHOTOS = [
   "판매 동향",
   "활동사항",
   "요청사항",
-  "사진",
 ];
-const STORE_PHOTO_COL_START = LOG_HEADERS_BEFORE_PHOTOS.length; // = 2
+const STORE_PHOTO_COL_START = LOG_HEADERS_BEFORE_STORE_PHOTOS.length; // = 2
 
-function buildLogHeaders(photoCount: number): string[] {
-  const photoCols: string[] = [];
-  for (let i = 0; i < photoCount; i++) {
-    photoCols.push(photoCount === 1 ? "매장 사진" : `매장 사진 ${i + 1}`);
+function buildLogHeaders(
+  storePhotoCount: number,
+  visitPhotoCount: number,
+): string[] {
+  const storeCols: string[] = [];
+  for (let i = 0; i < storePhotoCount; i++) {
+    storeCols.push(
+      storePhotoCount === 1 ? "매장 사진" : `매장 사진 ${i + 1}`,
+    );
+  }
+  const visitCols: string[] = [];
+  for (let i = 0; i < visitPhotoCount; i++) {
+    visitCols.push(
+      visitPhotoCount === 1 ? "방문 사진" : `방문 사진 ${i + 1}`,
+    );
   }
   return [
-    ...LOG_HEADERS_BEFORE_PHOTOS,
-    ...photoCols,
-    ...LOG_HEADERS_AFTER_PHOTOS,
+    ...LOG_HEADERS_BEFORE_STORE_PHOTOS,
+    ...storeCols,
+    ...LOG_HEADERS_BETWEEN_PHOTOS,
+    ...visitCols,
   ];
+}
+
+function visitPhotoColStart(storePhotoCount: number): number {
+  return (
+    LOG_HEADERS_BEFORE_STORE_PHOTOS.length +
+    storePhotoCount +
+    LOG_HEADERS_BETWEEN_PHOTOS.length
+  );
 }
 
 function logTabName(brandName: string) {
@@ -189,10 +208,6 @@ function buildCalendarSheetCells(
   return { rowData, dataStartRow, dataEndRow };
 }
 
-function photoCountText(paths: string[] | null | undefined): string {
-  const n = paths?.length ?? 0;
-  return n > 0 ? `사진 ${n}장` : "";
-}
 
 // 현재 org와 본인의 google_refresh_token으로 access token 발급
 // (시트는 org 마스터의 Drive에 있지만, 호출자의 OAuth 토큰으로 접근 시도.
@@ -444,12 +459,12 @@ export async function ensureBrandSheetTab(brandName: string) {
       [name],
     );
 
-    // 초기 헤더는 사진 컬럼 없이. 동기화 시 매장 사진 수에 맞춰 재작성됨.
+    // 초기 헤더는 사진 컬럼 없이. 동기화 시 사진 수에 맞춰 재작성됨.
     await writeValues(
       { accessToken },
       org.spreadsheet_id,
       `'${logName}'!A1`,
-      [buildLogHeaders(0)],
+      [buildLogHeaders(0, 0)],
     );
 
     return { ok: true };
@@ -582,6 +597,9 @@ export async function syncVisitsToSheets() {
       }
     }
 
+    // 방문 사진 경로 → signed URL 매핑
+    // (RLS는 같은 org 멤버 SELECT 허용 — migration 0015 적용 필요)
+
     // org의 모든 멤버 방문 (RLS가 멤버 범위 보장)
     type VisitRow = {
       user_id: string;
@@ -604,6 +622,28 @@ export async function syncVisitsToSheets() {
       .order("visit_date");
     if (vErr) throw vErr;
     const visits: VisitRow[] = (visitData ?? []) as VisitRow[];
+
+    // 방문 사진 경로 → signed URL 매핑 (시트의 IMAGE 수식용)
+    const allVisitPhotoPaths = new Set<string>();
+    for (const v of visits) {
+      for (const p of v.photo_paths ?? []) {
+        allVisitPhotoPaths.add(p);
+      }
+    }
+    const signedUrlByVisitPath = new Map<string, string>();
+    if (allVisitPhotoPaths.size > 0) {
+      const { data: vUrls } = await supabase.storage
+        .from("visit-photos")
+        .createSignedUrls(
+          Array.from(allVisitPhotoPaths),
+          60 * 60 * 24 * 365,
+        );
+      for (const item of vUrls ?? []) {
+        if (item.path && item.signedUrl) {
+          signedUrlByVisitPath.set(item.path, item.signedUrl);
+        }
+      }
+    }
 
     // 멤버 user_id → display_name 매핑 (담당자 컬럼용)
     const memberIds = Array.from(new Set(visits.map((v) => v.user_id)));
@@ -744,7 +784,8 @@ export async function syncVisitsToSheets() {
 
     // 각 브랜드 로그 탭의 데이터 행 수 + 사진 컬럼 수 (배치 차원 조정용)
     const logRowCounts = new Map<string, number>();
-    const logMaxPhotos = new Map<string, number>();
+    const logMaxPhotos = new Map<string, number>(); // 매장 사진 컬럼 수
+    const logMaxVisitPhotos = new Map<string, number>(); // 방문 사진 컬럼 수
 
     // 각 브랜드의 로그 탭에 방문당 1행씩 작성 (요약 탭은 사용 중단)
     for (const brandName of brandNames) {
@@ -757,18 +798,31 @@ export async function syncVisitsToSheets() {
         );
       });
 
-      // ───────── 로그 탭: 방문당 1행 (사진은 매장의 사진 수에 따라 가변 컬럼) ─────────
-      // 이 브랜드 매장들 중 가장 사진 많이 가진 매장 기준으로 컬럼 수 결정
-      const maxPhotos =
+      // ───────── 로그 탭 빌드 ─────────
+      // 매장 사진: 그 매장의 가장 이른 방문에만 표시 (이후 방문은 빈 셀)
+      // 방문 사진: 방문마다 본인 사진 표시
+      // 컬럼 수는 가장 많이 가진 쪽 기준
+      const maxStorePhotos =
         storeRows.length > 0
           ? Math.max(0, ...storeRows.map((s) => s.photoPaths.length))
           : 0;
-      logMaxPhotos.set(brandName, maxPhotos);
+      const maxVisitPhotos = (() => {
+        let m = 0;
+        for (const s of storeRows) {
+          for (const v of visitsByStore.get(s.storeId) ?? []) {
+            const n = v.photo_paths?.length ?? 0;
+            if (n > m) m = n;
+          }
+        }
+        return m;
+      })();
+      logMaxPhotos.set(brandName, maxStorePhotos);
+      logMaxVisitPhotos.set(brandName, maxVisitPhotos);
 
       type LogEntry = {
         date: string;
         storeName: string;
-        storePhotos: string[]; // length === maxPhotos, 빈 자리는 ""
+        storePhotos: string[]; // length === maxStorePhotos
         regionGroup: string;
         sigungu: string;
         assignee: string;
@@ -778,24 +832,40 @@ export async function syncVisitsToSheets() {
         salesTrend: string;
         activity: string;
         requests: string;
-        photo: string;
+        visitPhotos: string[]; // length === maxVisitPhotos
       };
 
+      const emptyStorePhotos: string[] = Array(maxStorePhotos).fill("");
       const logEntries: LogEntry[] = [];
       for (const s of storeRows) {
         const storeVisits = visitsByStore.get(s.storeId) ?? [];
-        // 매장의 모든 사진을 IMAGE 수식 배열로. 사진 부족분은 빈 문자열로 패딩.
-        const photoFormulas: string[] = [];
-        for (let i = 0; i < maxPhotos; i++) {
+        // 매장 사진은 첫 방문에만 — 매장 사진 IMAGE 수식 배열 (부족분 빈 문자열 패딩)
+        const storePhotoFormulas: string[] = [];
+        for (let i = 0; i < maxStorePhotos; i++) {
           const path = s.photoPaths[i];
           const url = path ? signedUrlByPath.get(path) : undefined;
-          photoFormulas.push(url ? `=IMAGE("${url}", 1)` : "");
+          storePhotoFormulas.push(url ? `=IMAGE("${url}", 1)` : "");
         }
-        for (const v of storeVisits) {
+
+        for (let idx = 0; idx < storeVisits.length; idx++) {
+          const v = storeVisits[idx];
+          // 첫 방문(인덱스 0 — visitsByStore는 이미 visit_date 오름차순 정렬됨)에만 매장 사진
+          const isFirstVisit = idx === 0;
+
+          // 방문 사진 IMAGE 수식 배열 (이 방문의 사진들)
+          const visitPhotoFormulas: string[] = [];
+          for (let i = 0; i < maxVisitPhotos; i++) {
+            const path = v.photo_paths?.[i];
+            const url = path ? signedUrlByVisitPath.get(path) : undefined;
+            visitPhotoFormulas.push(url ? `=IMAGE("${url}", 1)` : "");
+          }
+
           logEntries.push({
             date: v.visit_date,
             storeName: s.storeName,
-            storePhotos: photoFormulas,
+            storePhotos: isFirstVisit
+              ? storePhotoFormulas
+              : emptyStorePhotos,
             regionGroup: s.regionGroup,
             sigungu: s.sigungu,
             assignee: memberNames.get(v.user_id) ?? "알 수 없음",
@@ -805,14 +875,15 @@ export async function syncVisitsToSheets() {
             salesTrend: v.sales_trend ?? "",
             activity: v.activity ?? "",
             requests: v.requests ?? "",
-            photo: photoCountText(v.photo_paths),
+            visitPhotos: visitPhotoFormulas,
           });
         }
       }
-      logEntries.sort((a, b) => b.date.localeCompare(a.date));
+      // 과거 → 현재 → 미래 (오름차순)
+      logEntries.sort((a, b) => a.date.localeCompare(b.date));
       logRowCounts.set(brandName, logEntries.length);
 
-      const tabHeaders = buildLogHeaders(maxPhotos);
+      const tabHeaders = buildLogHeaders(maxStorePhotos, maxVisitPhotos);
       const logRows: (string | number)[][] = [tabHeaders];
       for (const e of logEntries) {
         logRows.push([
@@ -828,7 +899,7 @@ export async function syncVisitsToSheets() {
           e.salesTrend,
           e.activity,
           e.requests,
-          e.photo,
+          ...e.visitPhotos,
         ]);
       }
 
@@ -855,17 +926,19 @@ export async function syncVisitsToSheets() {
 
     const calendarBatchRequests: unknown[] = [];
 
-    // 0) 각 브랜드 로그 탭: 기본 필터 + 매장 사진 컬럼 폭/행 높이
+    // 0) 각 브랜드 로그 탭: 기본 필터 + 매장/방문 사진 컬럼 폭/행 높이
     for (const brandName of brandNames) {
       const logName = logTabName(brandName);
       const logSheetId = sheetIdByTitle.get(logName);
       if (logSheetId === undefined) continue;
 
-      const maxPhotos = logMaxPhotos.get(brandName) ?? 0;
+      const storePhotoCount = logMaxPhotos.get(brandName) ?? 0;
+      const visitPhotoCount = logMaxVisitPhotos.get(brandName) ?? 0;
       const headerLength =
-        LOG_HEADERS_BEFORE_PHOTOS.length +
-        maxPhotos +
-        LOG_HEADERS_AFTER_PHOTOS.length;
+        LOG_HEADERS_BEFORE_STORE_PHOTOS.length +
+        storePhotoCount +
+        LOG_HEADERS_BETWEEN_PHOTOS.length +
+        visitPhotoCount;
 
       // 기본 필터 (모든 컬럼 헤더에서 필터/정렬 가능)
       calendarBatchRequests.push({
@@ -881,15 +954,15 @@ export async function syncVisitsToSheets() {
         },
       });
 
-      // 매장 사진 컬럼 폭 (사진 컬럼이 있을 때만)
-      if (maxPhotos > 0) {
+      // 매장 사진 컬럼 폭
+      if (storePhotoCount > 0) {
         calendarBatchRequests.push({
           updateDimensionProperties: {
             range: {
               sheetId: logSheetId,
               dimension: "COLUMNS",
               startIndex: STORE_PHOTO_COL_START,
-              endIndex: STORE_PHOTO_COL_START + maxPhotos,
+              endIndex: STORE_PHOTO_COL_START + storePhotoCount,
             },
             properties: { pixelSize: 100 },
             fields: "pixelSize",
@@ -897,9 +970,27 @@ export async function syncVisitsToSheets() {
         });
       }
 
-      // 데이터 행 높이 (사진 컬럼이 있을 때만 — 썸네일 표시용)
+      // 방문 사진 컬럼 폭
+      if (visitPhotoCount > 0) {
+        const start = visitPhotoColStart(storePhotoCount);
+        calendarBatchRequests.push({
+          updateDimensionProperties: {
+            range: {
+              sheetId: logSheetId,
+              dimension: "COLUMNS",
+              startIndex: start,
+              endIndex: start + visitPhotoCount,
+            },
+            properties: { pixelSize: 100 },
+            fields: "pixelSize",
+          },
+        });
+      }
+
+      // 데이터 행 높이 (사진 컬럼이 하나라도 있으면 — 썸네일 표시용)
       const dataRowCount = logRowCounts.get(brandName) ?? 0;
-      if (dataRowCount > 0 && maxPhotos > 0) {
+      const anyPhoto = storePhotoCount > 0 || visitPhotoCount > 0;
+      if (dataRowCount > 0 && anyPhoto) {
         calendarBatchRequests.push({
           updateDimensionProperties: {
             range: {
