@@ -25,6 +25,7 @@ import { getCurrentOrgId, isCurrentUserMaster } from "@/lib/org/current";
 const LOG_HEADERS = [
   "방문일자",
   "매장명",
+  "매장 사진",
   "지역",
   "시/군/구",
   "담당자",
@@ -36,6 +37,9 @@ const LOG_HEADERS = [
   "요청사항",
   "사진",
 ];
+
+// IMAGE 수식이 들어가는 컬럼 index (0-based) — 매장 사진
+const STORE_PHOTO_COL_INDEX = 2;
 
 function logTabName(brandName: string) {
   return `${brandName} (로그)`;
@@ -537,14 +541,36 @@ export async function syncVisitsToSheets() {
       .order("name");
     if (bErr) throw bErr;
 
-    // org의 매장 + 지역그룹 + 브랜드
+    // org의 매장 + 지역그룹 + 브랜드 (사진 경로도 같이)
     const { data: stores, error: sErr } = await supabase
       .from("stores")
       .select(
-        "id, name, sigungu, brand:brands(id, name), region_group:region_groups(id, name)",
+        "id, name, sigungu, photo_paths, brand:brands(id, name), region_group:region_groups(id, name)",
       )
       .eq("organization_id", orgId);
     if (sErr) throw sErr;
+
+    // 매장 사진 경로 → signed URL 매핑 (시트의 IMAGE 수식용, 1년 유효)
+    const allStorePhotoPaths = new Set<string>();
+    for (const s of (stores ?? []) as Array<{ photo_paths: string[] | null }>) {
+      for (const p of s.photo_paths ?? []) {
+        allStorePhotoPaths.add(p);
+      }
+    }
+    const signedUrlByPath = new Map<string, string>();
+    if (allStorePhotoPaths.size > 0) {
+      const { data: urls } = await supabase.storage
+        .from("store-photos")
+        .createSignedUrls(
+          Array.from(allStorePhotoPaths),
+          60 * 60 * 24 * 365,
+        );
+      for (const item of urls ?? []) {
+        if (item.path && item.signedUrl) {
+          signedUrlByPath.set(item.path, item.signedUrl);
+        }
+      }
+    }
 
     // org의 모든 멤버 방문 (RLS가 멤버 범위 보장)
     type VisitRow = {
@@ -602,6 +628,7 @@ export async function syncVisitsToSheets() {
       regionGroup: string;
       sigungu: string;
       storeName: string;
+      photoPaths: string[];
     };
     const byBrand = new Map<string, StoreRow[]>();
     for (const b of allBrands ?? []) {
@@ -611,6 +638,7 @@ export async function syncVisitsToSheets() {
       id: string;
       name: string;
       sigungu: string | null;
+      photo_paths: string[] | null;
       brand: { id: string; name: string } | null;
       region_group: { id: string; name: string } | null;
     }>) {
@@ -622,6 +650,7 @@ export async function syncVisitsToSheets() {
         regionGroup: s.region_group?.name ?? "",
         sigungu: s.sigungu ?? "",
         storeName: s.name,
+        photoPaths: s.photo_paths ?? [],
       });
       byBrand.set(s.brand.name, list);
     }
@@ -703,6 +732,9 @@ export async function syncVisitsToSheets() {
       metaAfter.sheets.map((s) => [s.properties.title, s.properties.sheetId]),
     );
 
+    // 각 브랜드 로그 탭의 데이터 행 수 — 매장 사진 행 높이 조정용
+    const logRowCounts = new Map<string, number>();
+
     // 각 브랜드의 로그 탭에 방문당 1행씩 작성 (요약 탭은 사용 중단)
     for (const brandName of brandNames) {
       const storeRows = byBrand.get(brandName)!;
@@ -714,10 +746,11 @@ export async function syncVisitsToSheets() {
         );
       });
 
-      // ───────── 로그 탭: 방문당 1행 (최신순, 헤더 순서: 방문일자/매장명/지역/시군구/담당자/...) ─────────
+      // ───────── 로그 탭: 방문당 1행 (최신순, 헤더 순서: 방문일자/매장명/매장사진/지역/시군구/담당자/...) ─────────
       type LogEntry = {
         date: string;
         storeName: string;
+        storePhoto: string; // IMAGE 수식 또는 빈 문자열
         regionGroup: string;
         sigungu: string;
         assignee: string;
@@ -733,10 +766,19 @@ export async function syncVisitsToSheets() {
       const logEntries: LogEntry[] = [];
       for (const s of storeRows) {
         const storeVisits = visitsByStore.get(s.storeId) ?? [];
+        // 매장 첫 사진의 signed URL을 IMAGE 수식으로 (mode=1: 셀에 맞게 비율 유지)
+        const firstPhotoPath = s.photoPaths[0];
+        const firstPhotoUrl = firstPhotoPath
+          ? signedUrlByPath.get(firstPhotoPath)
+          : undefined;
+        const storePhotoFormula = firstPhotoUrl
+          ? `=IMAGE("${firstPhotoUrl}", 1)`
+          : "";
         for (const v of storeVisits) {
           logEntries.push({
             date: v.visit_date,
             storeName: s.storeName,
+            storePhoto: storePhotoFormula,
             regionGroup: s.regionGroup,
             sigungu: s.sigungu,
             assignee: memberNames.get(v.user_id) ?? "알 수 없음",
@@ -751,12 +793,14 @@ export async function syncVisitsToSheets() {
         }
       }
       logEntries.sort((a, b) => b.date.localeCompare(a.date));
+      logRowCounts.set(brandName, logEntries.length);
 
       const logRows: (string | number)[][] = [LOG_HEADERS];
       for (const e of logEntries) {
         logRows.push([
           format(parseISO(e.date), "yyyy-MM-dd"),
           e.storeName,
+          e.storePhoto,
           e.regionGroup,
           e.sigungu,
           e.assignee,
@@ -793,11 +837,13 @@ export async function syncVisitsToSheets() {
 
     const calendarBatchRequests: unknown[] = [];
 
-    // 0) 각 브랜드 로그 탭에 기본 필터 설정 — 매장명 등 모든 컬럼 헤더에서 필터/정렬 가능
+    // 0) 각 브랜드 로그 탭: 기본 필터 + 매장 사진 컬럼 폭/행 높이
     for (const brandName of brandNames) {
       const logName = logTabName(brandName);
       const logSheetId = sheetIdByTitle.get(logName);
       if (logSheetId === undefined) continue;
+
+      // 기본 필터 (매장명 등 모든 컬럼 헤더에서 필터/정렬 가능)
       calendarBatchRequests.push({
         setBasicFilter: {
           filter: {
@@ -810,6 +856,37 @@ export async function syncVisitsToSheets() {
           },
         },
       });
+
+      // 매장 사진 컬럼 폭 (IMAGE 썸네일 표시용)
+      calendarBatchRequests.push({
+        updateDimensionProperties: {
+          range: {
+            sheetId: logSheetId,
+            dimension: "COLUMNS",
+            startIndex: STORE_PHOTO_COL_INDEX,
+            endIndex: STORE_PHOTO_COL_INDEX + 1,
+          },
+          properties: { pixelSize: 100 },
+          fields: "pixelSize",
+        },
+      });
+
+      // 데이터 행 높이 (헤더 다음 행부터)
+      const dataRowCount = logRowCounts.get(brandName) ?? 0;
+      if (dataRowCount > 0) {
+        calendarBatchRequests.push({
+          updateDimensionProperties: {
+            range: {
+              sheetId: logSheetId,
+              dimension: "ROWS",
+              startIndex: 1,
+              endIndex: 1 + dataRowCount,
+            },
+            properties: { pixelSize: 80 },
+            fields: "pixelSize",
+          },
+        });
+      }
     }
 
     // 1) 캘린더 탭들을 시간순으로 재배치
