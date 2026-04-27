@@ -34,6 +34,7 @@ export type Store = {
   region_group_id: string | null;
   lat: number | null;
   lng: number | null;
+  photo_paths: string[];
   created_by: string | null;
   created_at: string;
   updated_at: string;
