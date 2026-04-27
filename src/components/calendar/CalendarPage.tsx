@@ -109,6 +109,7 @@ export function CalendarPage({
       sales_trend: null,
       activity: null,
       display_type: null,
+      requests: null,
       photo_paths: [],
       store: {
         id: store.id,
