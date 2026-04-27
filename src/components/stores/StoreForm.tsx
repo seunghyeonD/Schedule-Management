@@ -1,12 +1,23 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import type { Brand, RegionGroup } from "@/lib/types/db";
 import { createStore } from "@/app/stores/actions";
 import { createClient } from "@/lib/supabase/client";
 import { searchPlacesByKeyword, type KakaoPlace } from "@/app/actions/kakao";
 import { parseSidoSigungu } from "@/lib/kakao/normalize";
+
+const ALLOWED_MIME = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/heic",
+  "image/heif",
+];
+const ALLOWED_EXT = ["jpg", "jpeg", "png", "webp", "heic", "heif"];
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+const MAX_PHOTOS = 10;
 
 const DaumPostcodeEmbed = dynamic(
   () => import("react-daum-postcode").then((m) => m.default),
@@ -27,9 +38,12 @@ type SearchMode = "keyword" | "address";
 type Props = {
   brands: Brand[];
   regionGroups: RegionGroup[];
+  orgId: string | null;
 };
 
-export function StoreForm({ brands, regionGroups }: Props) {
+type SelectedPhoto = { file: File; previewUrl: string };
+
+export function StoreForm({ brands, regionGroups, orgId }: Props) {
   const [isPending, startTransition] = useTransition();
   const [openPostcode, setOpenPostcode] = useState(false);
   const [searchMode, setSearchMode] = useState<SearchMode>("keyword");
@@ -48,6 +62,15 @@ export function StoreForm({ brands, regionGroups }: Props) {
   const [sigungu, setSigungu] = useState("");
   const [regionGroupId, setRegionGroupId] = useState<string>("");
   const [autoMatched, setAutoMatched] = useState(false);
+  const [photos, setPhotos] = useState<SelectedPhoto[]>([]);
+
+  // 컴포넌트 언마운트 시 미리보기 URL 메모리 정리
+  useEffect(() => {
+    return () => {
+      for (const p of photos) URL.revokeObjectURL(p.previewUrl);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const regionGroupById = useMemo(
     () => new Map(regionGroups.map((g) => [g.id, g.name])),
@@ -152,24 +175,120 @@ export function StoreForm({ brands, regionGroups }: Props) {
     setSigungu("");
     setRegionGroupId("");
     setAutoMatched(false);
+    for (const p of photos) URL.revokeObjectURL(p.previewUrl);
+    setPhotos([]);
+  }
+
+  function handleSelectPhotos(e: React.ChangeEvent<HTMLInputElement>) {
+    const newFiles = Array.from(e.target.files ?? []);
+    e.target.value = ""; // 같은 파일 재선택 가능하게
+    if (newFiles.length === 0) return;
+    if (photos.length + newFiles.length > MAX_PHOTOS) {
+      setError(`사진은 최대 ${MAX_PHOTOS}장까지 첨부할 수 있습니다.`);
+      return;
+    }
+    for (const file of newFiles) {
+      if (!ALLOWED_MIME.includes(file.type)) {
+        setError(`이미지만 첨부 가능합니다 (jpg, png, webp, heic). 거부: ${file.name}`);
+        return;
+      }
+      if (file.size > MAX_FILE_SIZE) {
+        setError(`파일 크기는 10MB 이하여야 합니다: ${file.name}`);
+        return;
+      }
+    }
+    setError(null);
+    const added: SelectedPhoto[] = newFiles.map((file) => ({
+      file,
+      previewUrl: URL.createObjectURL(file),
+    }));
+    setPhotos((prev) => [...prev, ...added]);
+  }
+
+  function handleRemovePhoto(idx: number) {
+    setPhotos((prev) => {
+      const target = prev[idx];
+      if (target) URL.revokeObjectURL(target.previewUrl);
+      return prev.filter((_, i) => i !== idx);
+    });
+  }
+
+  // 매장 추가 시 호출 — 사진을 먼저 Storage에 올린 뒤 경로 배열 반환.
+  // 실패하면 이미 올라간 사진들을 정리해 orphan을 남기지 않음.
+  async function uploadPhotos(userId: string): Promise<string[]> {
+    if (photos.length === 0 || !orgId) return [];
+    const supabase = createClient();
+    const uploaded: string[] = [];
+
+    for (const { file } of photos) {
+      const rawExt = file.name.split(".").pop()?.toLowerCase() ?? "";
+      const ext = ALLOWED_EXT.includes(rawExt) ? rawExt : "jpg";
+      const path = `${orgId}/${userId}/${Date.now()}-${Math.random()
+        .toString(36)
+        .slice(2, 8)}.${ext}`;
+      const { error: upErr } = await supabase.storage
+        .from("store-photos")
+        .upload(path, file, { contentType: file.type });
+      if (upErr) {
+        if (uploaded.length > 0) {
+          await supabase.storage.from("store-photos").remove(uploaded);
+        }
+        throw new Error(`사진 업로드 실패: ${upErr.message}`);
+      }
+      uploaded.push(path);
+    }
+    return uploaded;
   }
 
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
     startTransition(async () => {
-      const res = await createStore({
-        brand_id: brandId,
-        name,
-        address,
-        address_detail: addressDetail || null,
-        postal_code: postalCode || null,
-        sido: sido || null,
-        sigungu: sigungu || null,
-        region_group_id: regionGroupId || null,
-      });
-      if (res?.error) setError(res.error);
-      else reset();
+      let uploadedPaths: string[] = [];
+      try {
+        if (photos.length > 0) {
+          if (!orgId) {
+            setError("기업이 선택되지 않았습니다");
+            return;
+          }
+          const supabase = createClient();
+          const {
+            data: { user },
+          } = await supabase.auth.getUser();
+          if (!user) {
+            setError("로그인이 필요합니다");
+            return;
+          }
+          uploadedPaths = await uploadPhotos(user.id);
+        }
+
+        const res = await createStore({
+          brand_id: brandId,
+          name,
+          address,
+          address_detail: addressDetail || null,
+          postal_code: postalCode || null,
+          sido: sido || null,
+          sigungu: sigungu || null,
+          region_group_id: regionGroupId || null,
+          photo_paths: uploadedPaths,
+        });
+
+        if (res?.error) {
+          // 매장 저장 실패 → 방금 올린 사진 정리
+          if (uploadedPaths.length > 0) {
+            const supabase = createClient();
+            await supabase.storage
+              .from("store-photos")
+              .remove(uploadedPaths);
+          }
+          setError(res.error);
+          return;
+        }
+        reset();
+      } catch (err) {
+        setError((err as Error).message);
+      }
     });
   }
 
@@ -397,6 +516,46 @@ export function StoreForm({ brands, regionGroups }: Props) {
           </Field>
         </div>
       )}
+
+      <Field label={`매장 사진 (선택, ${photos.length}/${MAX_PHOTOS})`}>
+        <div className="space-y-2">
+          {photos.length > 0 && (
+            <ul className="grid grid-cols-3 gap-2 sm:grid-cols-5">
+              {photos.map((p, idx) => (
+                <li key={p.previewUrl} className="group relative">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={p.previewUrl}
+                    alt="매장 사진"
+                    className="h-20 w-full rounded-md object-cover"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleRemovePhoto(idx)}
+                    aria-label="사진 제거"
+                    className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-[10px] text-white opacity-0 transition group-hover:opacity-100"
+                  >
+                    ✕
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <label className="flex cursor-pointer items-center justify-center rounded-md border border-dashed border-neutral-300 bg-neutral-50 px-3 py-3 text-xs text-neutral-600 hover:border-neutral-400 hover:bg-neutral-100">
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={handleSelectPhotos}
+              disabled={isPending || photos.length >= MAX_PHOTOS}
+              className="hidden"
+            />
+            {photos.length >= MAX_PHOTOS
+              ? `최대 ${MAX_PHOTOS}장까지 첨부 가능`
+              : "＋ 사진 추가"}
+          </label>
+        </div>
+      </Field>
 
       <div className="flex items-center justify-between">
         {error && <p className="text-xs text-red-600">{error}</p>}
