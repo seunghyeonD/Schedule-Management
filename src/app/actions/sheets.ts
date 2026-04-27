@@ -1,6 +1,15 @@
 "use server";
 
-import { format, parseISO } from "date-fns";
+import {
+  eachDayOfInterval,
+  endOfMonth,
+  endOfWeek,
+  format,
+  isSameMonth,
+  parseISO,
+  startOfMonth,
+  startOfWeek,
+} from "date-fns";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getGoogleAccessToken } from "@/lib/google/tokens";
@@ -44,6 +53,141 @@ const LOG_HEADERS = [
 
 function logTabName(brandName: string) {
   return `${brandName} (로그)`;
+}
+
+function calendarTabName(year: number, month: number): string {
+  return `${year}년 ${month}월`;
+}
+
+const CALENDAR_WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
+
+type RGB = { red: number; green: number; blue: number };
+const C_RED: RGB = { red: 0.9, green: 0.27, blue: 0.27 };
+const C_BLUE: RGB = { red: 0.16, green: 0.42, blue: 0.94 };
+const C_GRAY: RGB = { red: 0.7, green: 0.7, blue: 0.7 };
+const C_TEXT: RGB = { red: 0.2, green: 0.2, blue: 0.2 };
+const C_LIGHT_BG: RGB = { red: 0.96, green: 0.96, blue: 0.96 };
+
+type SheetCell = {
+  userEnteredValue?: { stringValue: string };
+  userEnteredFormat?: Record<string, unknown>;
+  textFormatRuns?: { startIndex: number; format: Record<string, unknown> }[];
+};
+type SheetRow = { values: SheetCell[] };
+
+// 한 달의 캘린더 그리드를 updateCells용 행 데이터로 빌드.
+// 각 날짜 셀은 "날짜\n1)매장명\n…" 멀티라인 + textFormatRuns로 날짜만 굵게/색칠.
+// 단일 숫자 셀이 음수로 파싱되는 USER_ENTERED 이슈를 피하려고 stringValue 사용.
+function buildCalendarSheetCells(
+  year: number,
+  month: number,
+  visitsByDate: Map<string, { storeName: string }[]>,
+): { rowData: SheetRow[]; dataStartRow: number; dataEndRow: number } {
+  const monthStart = startOfMonth(new Date(year, month - 1, 1));
+  const monthEnd = endOfMonth(monthStart);
+  const gridStart = startOfWeek(monthStart, { weekStartsOn: 0 });
+  const gridEnd = endOfWeek(monthEnd, { weekStartsOn: 0 });
+  const days = eachDayOfInterval({ start: gridStart, end: gridEnd });
+
+  const rowData: SheetRow[] = [];
+
+  // 0행: 제목
+  rowData.push({
+    values: [
+      {
+        userEnteredValue: { stringValue: calendarTabName(year, month) },
+        userEnteredFormat: {
+          textFormat: { bold: true, fontSize: 16 },
+          verticalAlignment: "MIDDLE",
+        },
+      },
+      ...Array.from({ length: 6 }, () => ({}) as SheetCell),
+    ],
+  });
+
+  // 1행: 여백
+  rowData.push({ values: Array.from({ length: 7 }, () => ({}) as SheetCell) });
+
+  // 2행: 요일 헤더
+  rowData.push({
+    values: CALENDAR_WEEKDAYS.map((w, i) => {
+      const color = i === 0 ? C_RED : i === 6 ? C_BLUE : undefined;
+      return {
+        userEnteredValue: { stringValue: w },
+        userEnteredFormat: {
+          textFormat: {
+            bold: true,
+            ...(color ? { foregroundColor: color } : {}),
+          },
+          horizontalAlignment: "CENTER",
+          verticalAlignment: "MIDDLE",
+          backgroundColor: C_LIGHT_BG,
+        },
+      };
+    }),
+  });
+
+  // 3행~: 날짜 그리드
+  const dataStartRow = 3;
+  for (let i = 0; i < days.length; i += 7) {
+    const week = days.slice(i, i + 7);
+    rowData.push({
+      values: week.map((day, dayIdx) => {
+        const key = format(day, "yyyy-MM-dd");
+        const visits = visitsByDate.get(key) ?? [];
+        const dayNum = format(day, "d");
+        const inThisMonth = isSameMonth(day, monthStart);
+        const visitLines = visits.map((v, idx) => `${idx + 1})${v.storeName}`);
+        const text = [dayNum, ...visitLines].join("\n");
+
+        // 다른 달 = 회색, 일요일 = 빨강, 토요일 = 파랑
+        const dayColor: RGB | undefined = !inThisMonth
+          ? C_GRAY
+          : dayIdx === 0
+            ? C_RED
+            : dayIdx === 6
+              ? C_BLUE
+              : undefined;
+
+        // 첫 줄(날짜)만 굵게/색칠. 두번째 줄부터는 기본 스타일로 리셋.
+        const textFormatRuns: SheetCell["textFormatRuns"] = [
+          {
+            startIndex: 0,
+            format: {
+              bold: true,
+              fontSize: 11,
+              ...(dayColor ? { foregroundColor: dayColor } : {}),
+            },
+          },
+        ];
+        if (visitLines.length > 0) {
+          textFormatRuns.push({
+            startIndex: dayNum.length + 1,
+            format: {
+              bold: false,
+              fontSize: 10,
+              foregroundColor: C_TEXT,
+            },
+          });
+        }
+
+        return {
+          userEnteredValue: { stringValue: text },
+          userEnteredFormat: {
+            wrapStrategy: "WRAP",
+            verticalAlignment: "TOP",
+            horizontalAlignment: "LEFT",
+            padding: { top: 4, right: 6, bottom: 4, left: 6 },
+            textFormat: { fontSize: 10 },
+          },
+          textFormatRuns,
+        };
+      }),
+    });
+  }
+
+  const dataEndRow = dataStartRow + Math.ceil(days.length / 7);
+  return { rowData, dataStartRow, dataEndRow };
 }
 
 function photoCountText(paths: string[] | null | undefined): string {
@@ -499,11 +643,71 @@ export async function syncVisitsToSheets() {
       allTabNames.push(b, logTabName(b));
     }
 
+    // store_id → store name 매핑 (캘린더 셀에 매장명 표기용)
+    const storeNameById = new Map<string, string>();
+    for (const s of (stores ?? []) as Array<{ id: string; name: string }>) {
+      storeNameById.set(s.id, s.name);
+    }
+
+    // 월별 → 일자별로 방문을 그룹핑 (캘린더 탭 빌드용)
+    type CalendarVisit = { storeName: string };
+    const visitsByMonth = new Map<string, Map<string, CalendarVisit[]>>();
+    for (const v of visits) {
+      const ym = v.visit_date.substring(0, 7); // "yyyy-MM"
+      let perDay = visitsByMonth.get(ym);
+      if (!perDay) {
+        perDay = new Map<string, CalendarVisit[]>();
+        visitsByMonth.set(ym, perDay);
+      }
+      const arr = perDay.get(v.visit_date) ?? [];
+      arr.push({ storeName: storeNameById.get(v.store_id) ?? "(삭제된 매장)" });
+      perDay.set(v.visit_date, arr);
+    }
+
+    // 캘린더 탭은 방문이 있는 모든 년도(현재 년도 포함)의 1~12월 전체를 사전 생성.
+    // 비어 있는 달도 빈 그리드 탭으로 미리 깔아두면 사용자가 어느 달이든 바로 열어볼 수 있음.
+    const yearsSet = new Set<number>();
+    for (const v of visits) {
+      yearsSet.add(Number(v.visit_date.substring(0, 4)));
+    }
+    yearsSet.add(new Date().getFullYear());
+    const yearsSorted = Array.from(yearsSet).sort((a, b) => a - b);
+    const minYear = yearsSorted[0];
+    const maxYear = yearsSorted[yearsSorted.length - 1];
+
+    type MonthSlot = {
+      year: number;
+      month: number;
+      tabName: string;
+      ym: string;
+    };
+    const allMonths: MonthSlot[] = [];
+    const calendarTabs: string[] = [];
+    for (let y = minYear; y <= maxYear; y++) {
+      for (let m = 1; m <= 12; m++) {
+        const tabName = calendarTabName(y, m);
+        const ym = `${y}-${String(m).padStart(2, "0")}`;
+        allMonths.push({ year: y, month: m, tabName, ym });
+        calendarTabs.push(tabName);
+      }
+    }
+
     await syncSpreadsheetTabs(
       accessToken,
       org.spreadsheet_id,
-      allTabNames,
+      [...allTabNames, ...calendarTabs],
       org.spreadsheet_managed ?? false,
+    );
+
+    // 새로 만든 탭들의 sheetId를 알아야 캘린더 포맷팅이 가능해서 메타 재조회
+    const metaAfter = (await getSpreadsheet(
+      { accessToken },
+      org.spreadsheet_id,
+    )) as {
+      sheets: { properties: { sheetId: number; title: string } }[];
+    };
+    const sheetIdByTitle = new Map(
+      metaAfter.sheets.map((s) => [s.properties.title, s.properties.sheetId]),
     );
 
     // 각 브랜드 탭에 데이터 쓰기
@@ -618,6 +822,113 @@ export async function syncVisitsToSheets() {
         org.spreadsheet_id,
         `'${logName}'!A1`,
         logRows,
+      );
+    }
+
+    // ───────── 월별 캘린더 탭: 사전 생성된 모든 달에 그리드 + 방문 데이터 쓰기 ─────────
+    // 정렬: 브랜드/로그 탭 뒤에 시간순으로 배치.
+    const calendarTabSet = new Set(calendarTabs);
+    const nonCalendarCount = metaAfter.sheets.filter(
+      (s) => !calendarTabSet.has(s.properties.title),
+    ).length;
+
+    const calendarBatchRequests: unknown[] = [];
+
+    // 1) 캘린더 탭들을 시간순으로 재배치
+    calendarTabs.forEach((name, idx) => {
+      const sheetId = sheetIdByTitle.get(name);
+      if (sheetId === undefined) return;
+      calendarBatchRequests.push({
+        updateSheetProperties: {
+          properties: { sheetId, index: nonCalendarCount + idx },
+          fields: "index",
+        },
+      });
+    });
+
+    // 2) 각 달 탭에 그리드 + 방문 데이터 쓰기 (방문 없는 달은 빈 그리드)
+    for (const slot of allMonths) {
+      const sheetId = sheetIdByTitle.get(slot.tabName);
+      if (sheetId === undefined) continue;
+
+      const perDay =
+        visitsByMonth.get(slot.ym) ??
+        new Map<string, { storeName: string }[]>();
+      const { rowData, dataStartRow, dataEndRow } = buildCalendarSheetCells(
+        slot.year,
+        slot.month,
+        perDay,
+      );
+
+      calendarBatchRequests.push(
+        // 기존 값 + 포맷 모두 리셋 (재싱크 시 잔여 셀 정리)
+        {
+          updateCells: {
+            range: {
+              sheetId,
+              startRowIndex: 0,
+              endRowIndex: 50,
+              startColumnIndex: 0,
+              endColumnIndex: 26,
+            },
+            fields: "*",
+          },
+        },
+        // 캘린더 본문 쓰기 (값 + 포맷 + 색상 한 번에)
+        {
+          updateCells: {
+            start: { sheetId, rowIndex: 0, columnIndex: 0 },
+            rows: rowData,
+            fields: "userEnteredValue,userEnteredFormat,textFormatRuns",
+          },
+        },
+        // 제목 행 높이
+        {
+          updateDimensionProperties: {
+            range: {
+              sheetId,
+              dimension: "ROWS",
+              startIndex: 0,
+              endIndex: 1,
+            },
+            properties: { pixelSize: 36 },
+            fields: "pixelSize",
+          },
+        },
+        // 날짜 행 높이
+        {
+          updateDimensionProperties: {
+            range: {
+              sheetId,
+              dimension: "ROWS",
+              startIndex: dataStartRow,
+              endIndex: dataEndRow,
+            },
+            properties: { pixelSize: 90 },
+            fields: "pixelSize",
+          },
+        },
+        // 컬럼 너비
+        {
+          updateDimensionProperties: {
+            range: {
+              sheetId,
+              dimension: "COLUMNS",
+              startIndex: 0,
+              endIndex: 7,
+            },
+            properties: { pixelSize: 140 },
+            fields: "pixelSize",
+          },
+        },
+      );
+    }
+
+    if (calendarBatchRequests.length > 0) {
+      await batchUpdate(
+        { accessToken },
+        org.spreadsheet_id,
+        calendarBatchRequests,
       );
     }
 
