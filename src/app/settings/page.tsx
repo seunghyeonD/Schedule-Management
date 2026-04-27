@@ -119,6 +119,13 @@ export default async function SettingsPage() {
             </p>
           )}
         </section>
+
+        <section className="mt-4 rounded-2xl border border-neutral-200 bg-white p-4 sm:mt-6 sm:p-5">
+          <h2 className="text-sm font-semibold text-neutral-800">글자 크기</h2>
+          <div className="mt-3">
+            <FontSizeSetting current={fontSize} />
+          </div>
+        </section>
       </main>
     </>
   );
