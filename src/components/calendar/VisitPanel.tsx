@@ -8,7 +8,6 @@ import type {
   StorePicker,
   VisitCell,
 } from "@/lib/supabase/calendar-queries";
-import { addVisit, deleteVisit } from "@/app/actions/visits";
 import { brandColor } from "@/lib/brandColor";
 import { VisitMemoModal } from "./VisitMemoModal";
 
@@ -18,6 +17,13 @@ type Props = {
   brands: Brand[];
   regionGroups: RegionGroup[];
   stores: StorePicker[];
+  onAddVisit: (
+    store: StorePicker,
+    storeName: string,
+    brandName: string,
+    regionGroupName: string | null,
+  ) => Promise<{ error?: string }>;
+  onDeleteVisit: (visitId: string) => Promise<{ error?: string }>;
   onChange?: () => void;
 };
 
@@ -29,6 +35,8 @@ export function VisitPanel({
   brands,
   regionGroups,
   stores,
+  onAddVisit,
+  onDeleteVisit,
   onChange,
 }: Props) {
   const [isPending, startTransition] = useTransition();
@@ -118,9 +126,18 @@ export function VisitPanel({
       if (!confirm(`"${storeName}" 매장은 이미 이 날짜에 등록되어 있습니다. 한 번 더 추가할까요?`))
         return;
     }
-    const visitDate = format(date, "yyyy-MM-dd");
+    const store = stores.find((s) => s.id === storeId);
+    if (!store) return;
+    const brand = brands.find((b) => b.id === brandId);
+    const regionGroup = regionGroups.find((g) => g.id === regionGroupId);
+
     startTransition(async () => {
-      const res = await addVisit({ store_id: storeId, visit_date: visitDate });
+      const res = await onAddVisit(
+        store,
+        storeName,
+        brand?.name ?? "",
+        regionGroup?.name ?? null,
+      );
       if (res?.error) setError(res.error);
       else {
         resetFlow();
@@ -131,7 +148,7 @@ export function VisitPanel({
 
   function handleDelete(visitId: string) {
     startTransition(async () => {
-      const res = await deleteVisit(visitId);
+      const res = await onDeleteVisit(visitId);
       if (!res?.error) onChange?.();
     });
   }

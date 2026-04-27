@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useOptimistic, useState, useTransition } from "react";
 import type { Brand } from "@/lib/types/db";
 import { deleteBrand } from "@/app/stores/actions";
 import { brandColor } from "@/lib/brandColor";
@@ -14,13 +14,20 @@ export function BrandList({ brands }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [pendingId, setPendingId] = useState<string | null>(null);
 
-  if (brands.length === 0) return null;
+  // 삭제 시 즉시 사라지게 — 액션이 끝나면 props가 갱신되며 자동 동기화됨.
+  const [optimisticBrands, removeOptimistic] = useOptimistic(
+    brands,
+    (state, idToRemove: string) => state.filter((b) => b.id !== idToRemove),
+  );
+
+  if (optimisticBrands.length === 0) return null;
 
   function handleDelete(brand: Brand) {
     if (!confirm(`"${brand.name}" 브랜드를 삭제할까요?`)) return;
     setError(null);
     setPendingId(brand.id);
     startTransition(async () => {
+      removeOptimistic(brand.id);
       const res = await deleteBrand(brand.id);
       setPendingId(null);
       if (res?.error) setError(res.error);
@@ -30,7 +37,7 @@ export function BrandList({ brands }: Props) {
   return (
     <div>
       <ul className="flex flex-wrap gap-2">
-        {brands.map((b) => {
+        {optimisticBrands.map((b) => {
           const c = brandColor(b.id);
           const busy = isPending && pendingId === b.id;
           return (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useOptimistic, useRef, useState } from "react";
 import {
   addMonths,
   eachDayOfInterval,
@@ -19,6 +19,7 @@ import type {
   StorePicker,
   VisitCell,
 } from "@/lib/supabase/calendar-queries";
+import { addVisit, deleteVisit } from "@/app/actions/visits";
 import { VisitPanel } from "./VisitPanel";
 import { SyncButton } from "./SyncButton";
 import { brandColor } from "@/lib/brandColor";
@@ -31,6 +32,10 @@ type Props = {
   sheetsConnected: boolean;
   initialLastSyncedAt: string | null;
 };
+
+type OptimisticAction =
+  | { type: "add"; visit: VisitCell }
+  | { type: "delete"; id: string };
 
 const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
 
@@ -47,6 +52,18 @@ export function CalendarPage({
   const dirtyRef = useRef<(() => void) | null>(null);
   const markDirty = () => dirtyRef.current?.();
 
+  // 서버 액션이 끝나기 전에 UI에 즉시 반영. 액션 완료 시 props가 갱신되며
+  // optimistic 상태는 자동으로 폐기됨.
+  const [optimisticVisits, applyOptimistic] = useOptimistic<
+    VisitCell[],
+    OptimisticAction
+  >(initialVisits, (state, action) => {
+    if (action.type === "add") return [...state, action.visit];
+    if (action.type === "delete")
+      return state.filter((v) => v.id !== action.id);
+    return state;
+  });
+
   const monthStart = startOfMonth(month);
   const monthEnd = endOfMonth(month);
   const gridStart = startOfWeek(monthStart, { weekStartsOn: 0 });
@@ -55,18 +72,72 @@ export function CalendarPage({
 
   const visitsByDate = useMemo(() => {
     const map = new Map<string, VisitCell[]>();
-    for (const v of initialVisits) {
+    for (const v of optimisticVisits) {
       const arr = map.get(v.visit_date) ?? [];
       arr.push(v);
       map.set(v.visit_date, arr);
     }
+    for (const arr of Array.from(map.values())) {
+      arr.sort((a: VisitCell, b: VisitCell) => a.visit_order - b.visit_order);
+    }
     return map;
-  }, [initialVisits]);
+  }, [optimisticVisits]);
 
   const selectedKey = selected ? format(selected, "yyyy-MM-dd") : null;
   const selectedVisits = selectedKey
     ? visitsByDate.get(selectedKey) ?? []
     : [];
+
+  // VisitPanel이 호출하는 핸들러 — startTransition 안에서 동작해야 useOptimistic 적용됨.
+  // (VisitPanel의 startTransition으로 감싸진 콜체인에서 호출됨)
+  const handleAddVisit = async (
+    store: StorePicker,
+    storeName: string,
+    brandName: string,
+    regionGroupName: string | null,
+  ): Promise<{ error?: string }> => {
+    if (!selected) return { error: "날짜를 선택하세요" };
+    const visitDate = format(selected, "yyyy-MM-dd");
+    const dayVisits = visitsByDate.get(visitDate) ?? [];
+
+    const optimisticVisit: VisitCell = {
+      id: `__optimistic_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+      visit_date: visitDate,
+      visit_order: dayVisits.length + 1,
+      store_position: null,
+      customer_count: null,
+      sales_trend: null,
+      activity: null,
+      display_type: null,
+      photo_paths: [],
+      store: {
+        id: store.id,
+        name: storeName,
+        deleted_at: null,
+        brand: { id: store.brand_id, name: brandName },
+        region_group: store.region_group_id
+          ? { id: store.region_group_id, name: regionGroupName ?? "" }
+          : null,
+      },
+    };
+
+    applyOptimistic({ type: "add", visit: optimisticVisit });
+    const res = await addVisit({
+      store_id: store.id,
+      visit_date: visitDate,
+    });
+    if (!res?.error) markDirty();
+    return res ?? {};
+  };
+
+  const handleDeleteVisit = async (
+    visitId: string,
+  ): Promise<{ error?: string }> => {
+    applyOptimistic({ type: "delete", id: visitId });
+    const res = await deleteVisit(visitId);
+    if (!res?.error) markDirty();
+    return res ?? {};
+  };
 
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_380px]">
@@ -231,6 +302,8 @@ export function CalendarPage({
         brands={brands}
         regionGroups={regionGroups}
         stores={stores}
+        onAddVisit={handleAddVisit}
+        onDeleteVisit={handleDeleteVisit}
         onChange={markDirty}
       />
     </div>

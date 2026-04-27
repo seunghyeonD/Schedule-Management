@@ -39,8 +39,11 @@ export async function createBrand(formData: FormData) {
     return { error: error.message };
   }
 
-  // 연결된 스프레드시트가 있으면 해당 브랜드 탭을 만들어 둠 (실패해도 브랜드 생성은 OK)
-  await ensureBrandSheetTab(parsed.data.name);
+  // Sheets 탭 생성은 fire-and-forget (Google API 4~5회 왕복 대기를 차단)
+  // 실패해도 다음 동기화 때 자동 복구됨.
+  void ensureBrandSheetTab(parsed.data.name).catch((e) => {
+    console.error("[createBrand] sheet tab 생성 실패:", e);
+  });
 
   revalidatePath("/stores");
   return { ok: true };
@@ -72,9 +75,11 @@ export async function deleteBrand(brandId: string) {
   const { error } = await supabase.from("brands").delete().eq("id", brandId);
   if (error) return { error: error.message };
 
-  // 앱이 만든 스프레드시트라면 해당 브랜드 탭도 정리 (실패해도 삭제는 OK)
+  // Sheets 탭 정리도 fire-and-forget — 사용자 응답을 막지 않음
   if (brand?.name) {
-    await removeBrandSheetTab(brand.name);
+    void removeBrandSheetTab(brand.name).catch((e) => {
+      console.error("[deleteBrand] sheet tab 제거 실패:", e);
+    });
   }
 
   revalidatePath("/stores");

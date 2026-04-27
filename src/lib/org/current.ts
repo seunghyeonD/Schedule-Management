@@ -1,12 +1,13 @@
+import { cache } from "react";
 import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 
 const CURRENT_ORG_COOKIE = "current_org_id";
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 365; // 1년
 
-// 현재 선택된 org id를 반환. 쿠키가 없거나 무효하면 첫 번째 가입 org로 자동 폴백.
-// 가입된 org가 하나도 없으면 null.
-export async function getCurrentOrgId(): Promise<string | null> {
+// React cache로 요청당 1회만 실제 DB 호출. SSR에서 같은 페이지의 여러 쿼리가
+// 중복으로 auth + 멤버십 체크를 돌리지 않도록 함.
+export const getCurrentOrgId = cache(async (): Promise<string | null> => {
   const supabase = createClient();
   const {
     data: { user },
@@ -37,7 +38,7 @@ export async function getCurrentOrgId(): Promise<string | null> {
     .maybeSingle();
 
   return firstOrg?.organization_id ?? null;
-}
+});
 
 // 쿠키만 세팅 (호출하는 server action이 멤버십을 사전 검증할 책임 있음)
 export function setCurrentOrgCookie(orgId: string) {
@@ -54,20 +55,22 @@ export function clearCurrentOrgCookie() {
   cookies().delete(CURRENT_ORG_COOKIE);
 }
 
-// 현재 유저가 해당 org의 마스터인지
-export async function isCurrentUserMaster(orgId: string): Promise<boolean> {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return false;
+// 현재 유저가 해당 org의 마스터인지 — 요청당 1회 캐시
+export const isCurrentUserMaster = cache(
+  async (orgId: string): Promise<boolean> => {
+    const supabase = createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return false;
 
-  const { data } = await supabase
-    .from("organization_members")
-    .select("role")
-    .eq("organization_id", orgId)
-    .eq("user_id", user.id)
-    .maybeSingle();
+    const { data } = await supabase
+      .from("organization_members")
+      .select("role")
+      .eq("organization_id", orgId)
+      .eq("user_id", user.id)
+      .maybeSingle();
 
-  return data?.role === "master";
-}
+    return data?.role === "master";
+  },
+);

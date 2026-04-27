@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useOptimistic, useState, useTransition } from "react";
 import { deleteStore } from "@/app/stores/actions";
 import type { StoreWithRelations } from "@/lib/supabase/queries";
 
@@ -11,20 +11,27 @@ export function StoreList({ stores }: { stores: StoreWithRelations[] }) {
   const [error, setError] = useState<string | null>(null);
   const [pendingId, setPendingId] = useState<string | null>(null);
 
+  // 삭제 즉시 목록에서 사라지도록 — 액션 완료 시 props가 갱신되며 자동 동기화됨.
+  const [optimisticStores, removeOptimistic] = useOptimistic(
+    stores,
+    (state, idToRemove: string) => state.filter((s) => s.id !== idToRemove),
+  );
+
   const brands = useMemo(() => {
     const map = new Map<string, string>();
-    for (const s of stores) if (s.brand) map.set(s.brand.id, s.brand.name);
+    for (const s of optimisticStores)
+      if (s.brand) map.set(s.brand.id, s.brand.name);
     return Array.from(map, ([id, name]) => ({ id, name }));
-  }, [stores]);
+  }, [optimisticStores]);
 
   const regions = useMemo(() => {
     const map = new Map<string, string>();
-    for (const s of stores)
+    for (const s of optimisticStores)
       if (s.region_group) map.set(s.region_group.id, s.region_group.name);
     return Array.from(map, ([id, name]) => ({ id, name }));
-  }, [stores]);
+  }, [optimisticStores]);
 
-  const filtered = stores.filter((s) => {
+  const filtered = optimisticStores.filter((s) => {
     if (brandFilter !== "all" && s.brand?.id !== brandFilter) return false;
     if (regionFilter !== "all" && s.region_group?.id !== regionFilter)
       return false;
@@ -36,6 +43,7 @@ export function StoreList({ stores }: { stores: StoreWithRelations[] }) {
     setError(null);
     setPendingId(id);
     startTransition(async () => {
+      removeOptimistic(id);
       const res = await deleteStore(id);
       setPendingId(null);
       if (res?.error) setError(res.error);
