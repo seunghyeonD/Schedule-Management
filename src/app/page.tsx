@@ -12,8 +12,10 @@ export const dynamic = "force-dynamic";
 
 export default async function Home() {
   const now = new Date();
-  const from = format(startOfMonth(subMonths(now, 1)), "yyyy-MM-dd");
-  const to = format(endOfMonth(addMonths(now, 1)), "yyyy-MM-dd");
+  // 사용자가 캘린더에서 이전/다음 달로 자유롭게 이동해도 방문 표시가 끊기지 않도록
+  // 넉넉하게 ±12개월을 미리 받아 둠.
+  const from = format(startOfMonth(subMonths(now, 12)), "yyyy-MM-dd");
+  const to = format(endOfMonth(addMonths(now, 12)), "yyyy-MM-dd");
 
   const [brands, regionGroups, stores, visits, syncStatus] = await Promise.all([
     getBrands(),
