@@ -2,14 +2,24 @@
 
 import { useMemo, useOptimistic, useState, useTransition } from "react";
 import { deleteStore } from "@/app/stores/actions";
+import type { Brand, RegionGroup } from "@/lib/types/db";
 import type { StoreWithRelations } from "@/lib/supabase/queries";
+import { StoreEditModal } from "./StoreEditModal";
 
-export function StoreList({ stores }: { stores: StoreWithRelations[] }) {
+type Props = {
+  stores: StoreWithRelations[];
+  brands: Brand[];
+  regionGroups: RegionGroup[];
+  orgId: string | null;
+};
+
+export function StoreList({ stores, brands, regionGroups, orgId }: Props) {
   const [isPending, startTransition] = useTransition();
   const [brandFilter, setBrandFilter] = useState<string>("all");
   const [regionFilter, setRegionFilter] = useState<string>("all");
   const [error, setError] = useState<string | null>(null);
   const [pendingId, setPendingId] = useState<string | null>(null);
+  const [editing, setEditing] = useState<StoreWithRelations | null>(null);
 
   // 삭제 즉시 목록에서 사라지도록 — 액션 완료 시 props가 갱신되며 자동 동기화됨.
   const [optimisticStores, removeOptimistic] = useOptimistic(
@@ -17,14 +27,15 @@ export function StoreList({ stores }: { stores: StoreWithRelations[] }) {
     (state, idToRemove: string) => state.filter((s) => s.id !== idToRemove),
   );
 
-  const brands = useMemo(() => {
+  // 필터 드롭다운에 쓰일 브랜드/지역 목록 (현재 표시되는 매장에서 추출)
+  const brandFilters = useMemo(() => {
     const map = new Map<string, string>();
     for (const s of optimisticStores)
       if (s.brand) map.set(s.brand.id, s.brand.name);
     return Array.from(map, ([id, name]) => ({ id, name }));
   }, [optimisticStores]);
 
-  const regions = useMemo(() => {
+  const regionFilters = useMemo(() => {
     const map = new Map<string, string>();
     for (const s of optimisticStores)
       if (s.region_group) map.set(s.region_group.id, s.region_group.name);
@@ -59,7 +70,7 @@ export function StoreList({ stores }: { stores: StoreWithRelations[] }) {
           className="rounded-md border border-neutral-300 px-2 py-1 text-xs"
         >
           <option value="all">전체 브랜드</option>
-          {brands.map((b) => (
+          {brandFilters.map((b) => (
             <option key={b.id} value={b.id}>
               {b.name}
             </option>
@@ -71,7 +82,7 @@ export function StoreList({ stores }: { stores: StoreWithRelations[] }) {
           className="rounded-md border border-neutral-300 px-2 py-1 text-xs"
         >
           <option value="all">전체 지역</option>
-          {regions.map((r) => (
+          {regionFilters.map((r) => (
             <option key={r.id} value={r.id}>
               {r.name}
             </option>
@@ -121,17 +132,40 @@ export function StoreList({ stores }: { stores: StoreWithRelations[] }) {
                     {s.address_detail ? ` ${s.address_detail}` : ""}
                   </p>
                 )}
+                {(s.photo_paths?.length ?? 0) > 0 && (
+                  <p className="mt-0.5 text-[11px] text-neutral-400">
+                    📷 사진 {s.photo_paths.length}장
+                  </p>
+                )}
               </div>
-              <button
-                disabled={isPending && pendingId === s.id}
-                onClick={() => handleDelete(s.id, s.name)}
-                className="ml-3 text-xs text-red-600 hover:underline disabled:opacity-50"
-              >
-                {isPending && pendingId === s.id ? "삭제 중…" : "삭제"}
-              </button>
+              <div className="ml-3 flex shrink-0 items-center gap-3 text-xs">
+                <button
+                  onClick={() => setEditing(s)}
+                  className="text-neutral-600 hover:underline"
+                >
+                  수정
+                </button>
+                <button
+                  disabled={isPending && pendingId === s.id}
+                  onClick={() => handleDelete(s.id, s.name)}
+                  className="text-red-600 hover:underline disabled:opacity-50"
+                >
+                  {isPending && pendingId === s.id ? "삭제 중…" : "삭제"}
+                </button>
+              </div>
             </li>
           ))}
         </ul>
+      )}
+
+      {editing && (
+        <StoreEditModal
+          store={editing}
+          brands={brands}
+          regionGroups={regionGroups}
+          orgId={orgId}
+          onClose={() => setEditing(null)}
+        />
       )}
     </div>
   );
