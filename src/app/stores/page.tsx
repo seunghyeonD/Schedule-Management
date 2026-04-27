@@ -3,6 +3,7 @@ import { BrandForm } from "@/components/stores/BrandForm";
 import { BrandList } from "@/components/stores/BrandList";
 import { StoreForm } from "@/components/stores/StoreForm";
 import { StoreList } from "@/components/stores/StoreList";
+import { getCurrentOrgId } from "@/lib/org/current";
 import {
   getBrands,
   getRegionGroups,
@@ -12,10 +13,11 @@ import {
 export const dynamic = "force-dynamic";
 
 export default async function StoresPage() {
-  const [brands, regionGroups, stores] = await Promise.all([
+  const [brands, regionGroups, stores, orgId] = await Promise.all([
     getBrands(),
     getRegionGroups(),
     getStores(),
+    getCurrentOrgId(),
   ]);
 
   return (
@@ -42,14 +44,23 @@ export default async function StoresPage() {
         <section className="mt-4 rounded-2xl border border-neutral-200 bg-white p-4 sm:mt-6 sm:p-5">
           <h2 className="text-sm font-semibold text-neutral-800">매장 추가</h2>
           <div className="mt-3">
-            <StoreForm brands={brands} regionGroups={regionGroups} />
+            <StoreForm
+              brands={brands}
+              regionGroups={regionGroups}
+              orgId={orgId}
+            />
           </div>
         </section>
 
         <section className="mt-4 rounded-2xl border border-neutral-200 bg-white p-4 sm:mt-6 sm:p-5">
           <h2 className="text-sm font-semibold text-neutral-800">매장 목록</h2>
           <div className="mt-3">
-            <StoreList stores={stores} />
+            <StoreList
+              stores={stores}
+              brands={brands}
+              regionGroups={regionGroups}
+              orgId={orgId}
+            />
           </div>
         </section>
       </main>
