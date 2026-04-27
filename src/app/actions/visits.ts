@@ -104,6 +104,7 @@ const memoSchema = z.object({
   sales_trend: z.string().max(500).nullable(),
   activity: z.string().max(2000).nullable(),
   display_type: z.string().max(200).nullable(),
+  requests: z.string().max(2000).nullable(),
   photo_paths: z.array(z.string().max(500)).max(10),
 });
 
@@ -134,6 +135,7 @@ export async function updateVisitMemo(input: z.input<typeof memoSchema>) {
       sales_trend: parsed.data.sales_trend,
       activity: parsed.data.activity,
       display_type: parsed.data.display_type,
+      requests: parsed.data.requests,
       photo_paths: parsed.data.photo_paths,
     })
     .eq("id", parsed.data.visit_id)
