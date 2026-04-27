@@ -10,6 +10,7 @@ export type VisitCell = {
   sales_trend: string | null;
   activity: string | null;
   display_type: string | null;
+  requests: string | null;
   photo_paths: string[];
   store: {
     id: string;
@@ -38,7 +39,7 @@ export async function getVisitsInRange(
     .from("visits")
     .select(
       `id, visit_date, visit_order,
-       store_position, customer_count, sales_trend, activity, display_type, photo_paths,
+       store_position, customer_count, sales_trend, activity, display_type, requests, photo_paths,
        store:stores(
          id, name, deleted_at,
          brand:brands(id, name),
