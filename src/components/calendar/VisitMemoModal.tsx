@@ -27,6 +27,7 @@ export function VisitMemoModal({ visit, onClose, onSaved }: Props) {
   const [salesTrend, setSalesTrend] = useState("");
   const [activity, setActivity] = useState("");
   const [displayType, setDisplayType] = useState("");
+  const [requests, setRequests] = useState("");
   const [photoPaths, setPhotoPaths] = useState<string[]>([]);
   const [originalPaths, setOriginalPaths] = useState<string[]>([]);
   const [photoUrls, setPhotoUrls] = useState<Record<string, string>>({});
@@ -41,7 +42,7 @@ export function VisitMemoModal({ visit, onClose, onSaved }: Props) {
       const { data, error: fetchErr } = await supabase
         .from("visits")
         .select(
-          "store_position, customer_count, sales_trend, activity, display_type, photo_paths",
+          "store_position, customer_count, sales_trend, activity, display_type, requests, photo_paths",
         )
         .eq("id", visit.id)
         .maybeSingle();
@@ -58,6 +59,7 @@ export function VisitMemoModal({ visit, onClose, onSaved }: Props) {
         sales_trend?: string | null;
         activity?: string | null;
         display_type?: string | null;
+        requests?: string | null;
         photo_paths?: string[] | null;
       };
       setStorePosition(row.store_position ?? "");
@@ -65,6 +67,7 @@ export function VisitMemoModal({ visit, onClose, onSaved }: Props) {
       setSalesTrend(row.sales_trend ?? "");
       setActivity(row.activity ?? "");
       setDisplayType(row.display_type ?? "");
+      setRequests(row.requests ?? "");
       const paths = row.photo_paths ?? [];
       setPhotoPaths(paths);
       setOriginalPaths(paths);
@@ -188,6 +191,7 @@ export function VisitMemoModal({ visit, onClose, onSaved }: Props) {
         sales_trend: salesTrend.trim() || null,
         activity: activity.trim() || null,
         display_type: displayType.trim() || null,
+        requests: requests.trim() || null,
         photo_paths: photoPaths,
       });
       if (res?.error) {
@@ -254,35 +258,35 @@ export function VisitMemoModal({ visit, onClose, onSaved }: Props) {
               기존 메모 불러오는 중…
             </p>
           )}
-          <Field label="매장 입점 위치">
+          <Field label="상권 동향">
             <input
               value={storePosition}
               onChange={(e) => setStorePosition(e.target.value)}
-              placeholder="예: 1층 정문 우측, 지하1층 에스컬레이터 옆"
+              placeholder="예: 유동인구 증가, 경쟁사 신규 입점"
               className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
             />
           </Field>
 
           <div className="grid grid-cols-2 gap-3">
-            <Field label="유입 고객수">
+            <Field label="고객 동향">
               <input
                 value={customerCount}
                 onChange={(e) => setCustomerCount(e.target.value)}
-                placeholder="예: 30명, 보통"
+                placeholder="예: 가족 단위 증가, 평일 한산"
                 className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
               />
             </Field>
-            <Field label="진열형태">
+            <Field label="진열 위치 및 동향">
               <input
                 value={displayType}
                 onChange={(e) => setDisplayType(e.target.value)}
-                placeholder="예: 엔드 2단, 평대 우측"
+                placeholder="예: 1층 정문 우측 엔드 2단"
                 className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
               />
             </Field>
           </div>
 
-          <Field label="판매동향">
+          <Field label="판매 동향">
             <input
               value={salesTrend}
               onChange={(e) => setSalesTrend(e.target.value)}
@@ -297,6 +301,16 @@ export function VisitMemoModal({ visit, onClose, onSaved }: Props) {
               onChange={(e) => setActivity(e.target.value)}
               rows={4}
               placeholder="오늘의 활동을 자유롭게 기록하세요"
+              className="w-full resize-y rounded-md border border-neutral-300 px-3 py-2 text-sm"
+            />
+          </Field>
+
+          <Field label="요청사항">
+            <textarea
+              value={requests}
+              onChange={(e) => setRequests(e.target.value)}
+              rows={3}
+              placeholder="점주/매니저로부터 받은 요청을 기록하세요"
               className="w-full resize-y rounded-md border border-neutral-300 px-3 py-2 text-sm"
             />
           </Field>
