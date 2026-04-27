@@ -2,7 +2,8 @@ import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
 import { MobileBottomNav } from "@/components/MobileBottomNav";
-import { FONT_SIZE_PX, getUserFontSize } from "@/lib/preferences";
+import { FONT_SIZE_PX } from "@/lib/preferences";
+import { getUserFontSize } from "@/lib/preferences.server";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",

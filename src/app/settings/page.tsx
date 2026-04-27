@@ -4,7 +4,7 @@ import { SheetConnect } from "@/components/settings/SheetConnect";
 import { FontSizeSetting } from "@/components/settings/FontSizeSetting";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgId, isCurrentUserMaster } from "@/lib/org/current";
-import { getUserFontSize } from "@/lib/preferences";
+import { getUserFontSize } from "@/lib/preferences.server";
 
 export const dynamic = "force-dynamic";
 
