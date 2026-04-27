@@ -188,6 +188,7 @@ export function VisitPanel({
                 !!v.sales_trend ||
                 !!v.activity ||
                 !!v.display_type ||
+                !!v.requests ||
                 (v.photo_paths?.length ?? 0) > 0;
               return (
                 <li
