@@ -1,8 +1,10 @@
 import Link from "next/link";
 import AppHeader from "@/components/AppHeader";
 import { SheetConnect } from "@/components/settings/SheetConnect";
+import { FontSizeSetting } from "@/components/settings/FontSizeSetting";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrgId, isCurrentUserMaster } from "@/lib/org/current";
+import { getUserFontSize } from "@/lib/preferences";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +22,7 @@ export default async function SettingsPage() {
 
   const orgId = await getCurrentOrgId();
   const isMaster = orgId ? await isCurrentUserMaster(orgId) : false;
+  const fontSize = await getUserFontSize();
 
   let orgInfo: {
     name: string;
