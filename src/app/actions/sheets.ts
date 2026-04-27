@@ -22,32 +22,18 @@ import {
 } from "@/lib/google/sheets";
 import { getCurrentOrgId, isCurrentUserMaster } from "@/lib/org/current";
 
-const SUMMARY_HEADERS = [
-  "순번",
-  "지역",
-  "시/군/구",
-  "매장명",
-  "방문 일자",
-  "방문 횟수",
-  "최근 입점 위치",
-  "최근 유입 고객수",
-  "최근 진열 형태",
-  "최근 판매 동향",
-  "최근 활동사항",
-  "사진",
-];
-
 const LOG_HEADERS = [
-  "방문 일자",
-  "담당자",
+  "방문일자",
+  "매장명",
   "지역",
   "시/군/구",
-  "매장명",
-  "입점 위치",
-  "유입 고객수",
-  "진열 형태",
+  "담당자",
+  "상권 동향",
+  "고객 동향",
+  "진열 위치 및 동향",
   "판매 동향",
   "활동사항",
+  "요청사항",
   "사진",
 ];
 
@@ -361,8 +347,9 @@ const DEFAULT_TAB_TITLES = new Set(["시트1", "Sheet1"]);
 async function syncSpreadsheetTabs(
   accessToken: string,
   spreadsheetId: string,
-  brandNames: string[],
+  tabNames: string[],
   managed: boolean,
+  obsoleteTabs: string[] = [],
 ) {
   const meta = (await getSpreadsheet({ accessToken }, spreadsheetId)) as {
     sheets: { properties: { sheetId: number; title: string } }[];
@@ -372,17 +359,25 @@ async function syncSpreadsheetTabs(
   );
 
   const requests: unknown[] = [];
-  for (const name of brandNames) {
+  for (const name of tabNames) {
     if (!existing.has(name)) {
       requests.push({ addSheet: { properties: { title: name } } });
     }
   }
 
+  // 구식/미사용 탭 자동 정리 (예: 과거의 브랜드 요약 탭)
+  for (const obsolete of obsoleteTabs) {
+    const id = existing.get(obsolete);
+    if (id !== undefined) {
+      requests.push({ deleteSheet: { sheetId: id } });
+    }
+  }
+
   if (managed) {
-    const willHaveBrandTab =
-      brandNames.length > 0 &&
-      (brandNames.some((n) => existing.has(n)) || requests.length > 0);
-    if (willHaveBrandTab) {
+    const willHaveTabs =
+      tabNames.length > 0 &&
+      (tabNames.some((n) => existing.has(n)) || requests.length > 0);
+    if (willHaveTabs) {
       for (const { properties } of meta.sheets) {
         if (DEFAULT_TAB_TITLES.has(properties.title)) {
           requests.push({ deleteSheet: { sheetId: properties.sheetId } });
@@ -427,19 +422,15 @@ export async function ensureBrandSheetTab(brandName: string) {
 
     const accessToken = await getGoogleAccessToken(profile.google_refresh_token);
     const logName = logTabName(name);
+    // 로그 탭만 생성. 과거 버전에서 만들어진 브랜드명 요약 탭이 있으면 정리.
     await syncSpreadsheetTabs(
       accessToken,
       org.spreadsheet_id,
-      [name, logName],
+      [logName],
       org.spreadsheet_managed ?? false,
+      [name],
     );
 
-    await writeValues(
-      { accessToken },
-      org.spreadsheet_id,
-      `'${name}'!A1`,
-      [SUMMARY_HEADERS],
-    );
     await writeValues(
       { accessToken },
       org.spreadsheet_id,
@@ -491,7 +482,8 @@ export async function removeBrandSheetTab(brandName: string) {
       sheets: { properties: { sheetId: number; title: string } }[];
     };
 
-    const targetTitles = new Set([name, logTabName(name)]);
+    // 브랜드 요약 탭은 더 이상 만들지 않지만, 과거에 만들어진 잔존 탭이 있을 수 있어 같이 정리.
+    const targetTitles = new Set([logTabName(name), name]);
     const targets = meta.sheets.filter((s) =>
       targetTitles.has(s.properties.title),
     );
@@ -564,12 +556,13 @@ export async function syncVisitsToSheets() {
       sales_trend: string | null;
       activity: string | null;
       display_type: string | null;
+      requests: string | null;
       photo_paths: string[] | null;
     };
     const { data: visitData, error: vErr } = await supabase
       .from("visits")
       .select(
-        "user_id, store_id, visit_date, store_position, customer_count, sales_trend, activity, display_type, photo_paths",
+        "user_id, store_id, visit_date, store_position, customer_count, sales_trend, activity, display_type, requests, photo_paths",
       )
       .eq("organization_id", orgId)
       .order("visit_date");
@@ -638,10 +631,8 @@ export async function syncVisitsToSheets() {
     }
 
     const brandNames = Array.from(byBrand.keys());
-    const allTabNames: string[] = [];
-    for (const b of brandNames) {
-      allTabNames.push(b, logTabName(b));
-    }
+    // 로그 탭만 사용 (브랜드명 단독 요약 탭은 사용 중단)
+    const allTabNames: string[] = brandNames.map((b) => logTabName(b));
 
     // store_id → store name 매핑 (캘린더 셀에 매장명 표기용)
     const storeNameById = new Map<string, string>();
@@ -692,11 +683,13 @@ export async function syncVisitsToSheets() {
       }
     }
 
+    // 로그 탭 + 캘린더 탭만 보장. 과거의 브랜드명 요약 탭이 남아있으면 정리.
     await syncSpreadsheetTabs(
       accessToken,
       org.spreadsheet_id,
       [...allTabNames, ...calendarTabs],
       org.spreadsheet_managed ?? false,
+      brandNames,
     );
 
     // 새로 만든 탭들의 sheetId를 알아야 캘린더 포맷팅이 가능해서 메타 재조회
@@ -710,7 +703,7 @@ export async function syncVisitsToSheets() {
       metaAfter.sheets.map((s) => [s.properties.title, s.properties.sheetId]),
     );
 
-    // 각 브랜드 탭에 데이터 쓰기
+    // 각 브랜드의 로그 탭에 방문당 1행씩 작성 (요약 탭은 사용 중단)
     for (const brandName of brandNames) {
       const storeRows = byBrand.get(brandName)!;
       storeRows.sort((a, b) => {
@@ -721,55 +714,19 @@ export async function syncVisitsToSheets() {
         );
       });
 
-      // ───────── 요약 탭: 매장당 1행 ─────────
-      const summaryRows: (string | number)[][] = [SUMMARY_HEADERS];
-      storeRows.forEach((s, idx) => {
-        const storeVisits = visitsByStore.get(s.storeId) ?? [];
-        const dates = storeVisits
-          .map((v) => format(parseISO(v.visit_date), "M/d"))
-          .join(", ");
-        const count = storeVisits.length;
-        const latest = storeVisits[storeVisits.length - 1];
-        summaryRows.push([
-          idx + 1,
-          s.regionGroup,
-          s.sigungu,
-          s.storeName,
-          dates,
-          count,
-          latest?.store_position ?? "",
-          latest?.customer_count ?? "",
-          latest?.display_type ?? "",
-          latest?.sales_trend ?? "",
-          latest?.activity ?? "",
-          photoCountText(latest?.photo_paths ?? null),
-        ]);
-      });
-
-      await clearValues(
-        { accessToken },
-        org.spreadsheet_id,
-        `'${brandName}'!A:Z`,
-      );
-      await writeValues(
-        { accessToken },
-        org.spreadsheet_id,
-        `'${brandName}'!A1`,
-        summaryRows,
-      );
-
-      // ───────── 로그 탭: 방문당 1행 (담당자 컬럼 포함, 최신순) ─────────
+      // ───────── 로그 탭: 방문당 1행 (최신순, 헤더 순서: 방문일자/매장명/지역/시군구/담당자/...) ─────────
       type LogEntry = {
         date: string;
-        assignee: string;
+        storeName: string;
         regionGroup: string;
         sigungu: string;
-        storeName: string;
+        assignee: string;
         storePosition: string;
         customerCount: string;
         displayType: string;
         salesTrend: string;
         activity: string;
+        requests: string;
         photo: string;
       };
 
@@ -779,15 +736,16 @@ export async function syncVisitsToSheets() {
         for (const v of storeVisits) {
           logEntries.push({
             date: v.visit_date,
-            assignee: memberNames.get(v.user_id) ?? "알 수 없음",
+            storeName: s.storeName,
             regionGroup: s.regionGroup,
             sigungu: s.sigungu,
-            storeName: s.storeName,
+            assignee: memberNames.get(v.user_id) ?? "알 수 없음",
             storePosition: v.store_position ?? "",
             customerCount: v.customer_count ?? "",
             displayType: v.display_type ?? "",
             salesTrend: v.sales_trend ?? "",
             activity: v.activity ?? "",
+            requests: v.requests ?? "",
             photo: photoCountText(v.photo_paths),
           });
         }
@@ -798,15 +756,16 @@ export async function syncVisitsToSheets() {
       for (const e of logEntries) {
         logRows.push([
           format(parseISO(e.date), "yyyy-MM-dd"),
-          e.assignee,
+          e.storeName,
           e.regionGroup,
           e.sigungu,
-          e.storeName,
+          e.assignee,
           e.storePosition,
           e.customerCount,
           e.displayType,
           e.salesTrend,
           e.activity,
+          e.requests,
           e.photo,
         ]);
       }
@@ -833,6 +792,25 @@ export async function syncVisitsToSheets() {
     ).length;
 
     const calendarBatchRequests: unknown[] = [];
+
+    // 0) 각 브랜드 로그 탭에 기본 필터 설정 — 매장명 등 모든 컬럼 헤더에서 필터/정렬 가능
+    for (const brandName of brandNames) {
+      const logName = logTabName(brandName);
+      const logSheetId = sheetIdByTitle.get(logName);
+      if (logSheetId === undefined) continue;
+      calendarBatchRequests.push({
+        setBasicFilter: {
+          filter: {
+            range: {
+              sheetId: logSheetId,
+              startRowIndex: 0,
+              startColumnIndex: 0,
+              endColumnIndex: LOG_HEADERS.length,
+            },
+          },
+        },
+      });
+    }
 
     // 1) 캘린더 탭들을 시간순으로 재배치
     calendarTabs.forEach((name, idx) => {
