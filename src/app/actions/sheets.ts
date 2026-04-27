@@ -22,10 +22,9 @@ import {
 } from "@/lib/google/sheets";
 import { getCurrentOrgId, isCurrentUserMaster } from "@/lib/org/current";
 
-const LOG_HEADERS = [
-  "방문일자",
-  "매장명",
-  "매장 사진",
+// 매장 사진 컬럼은 매장의 사진 수에 따라 가변. 그래서 헤더는 함수로 빌드.
+const LOG_HEADERS_BEFORE_PHOTOS = ["방문일자", "매장명"];
+const LOG_HEADERS_AFTER_PHOTOS = [
   "지역",
   "시/군/구",
   "담당자",
@@ -37,9 +36,19 @@ const LOG_HEADERS = [
   "요청사항",
   "사진",
 ];
+const STORE_PHOTO_COL_START = LOG_HEADERS_BEFORE_PHOTOS.length; // = 2
 
-// IMAGE 수식이 들어가는 컬럼 index (0-based) — 매장 사진
-const STORE_PHOTO_COL_INDEX = 2;
+function buildLogHeaders(photoCount: number): string[] {
+  const photoCols: string[] = [];
+  for (let i = 0; i < photoCount; i++) {
+    photoCols.push(photoCount === 1 ? "매장 사진" : `매장 사진 ${i + 1}`);
+  }
+  return [
+    ...LOG_HEADERS_BEFORE_PHOTOS,
+    ...photoCols,
+    ...LOG_HEADERS_AFTER_PHOTOS,
+  ];
+}
 
 function logTabName(brandName: string) {
   return `${brandName} (로그)`;
@@ -435,11 +444,12 @@ export async function ensureBrandSheetTab(brandName: string) {
       [name],
     );
 
+    // 초기 헤더는 사진 컬럼 없이. 동기화 시 매장 사진 수에 맞춰 재작성됨.
     await writeValues(
       { accessToken },
       org.spreadsheet_id,
       `'${logName}'!A1`,
-      [LOG_HEADERS],
+      [buildLogHeaders(0)],
     );
 
     return { ok: true };
@@ -732,8 +742,9 @@ export async function syncVisitsToSheets() {
       metaAfter.sheets.map((s) => [s.properties.title, s.properties.sheetId]),
     );
 
-    // 각 브랜드 로그 탭의 데이터 행 수 — 매장 사진 행 높이 조정용
+    // 각 브랜드 로그 탭의 데이터 행 수 + 사진 컬럼 수 (배치 차원 조정용)
     const logRowCounts = new Map<string, number>();
+    const logMaxPhotos = new Map<string, number>();
 
     // 각 브랜드의 로그 탭에 방문당 1행씩 작성 (요약 탭은 사용 중단)
     for (const brandName of brandNames) {
@@ -746,11 +757,18 @@ export async function syncVisitsToSheets() {
         );
       });
 
-      // ───────── 로그 탭: 방문당 1행 (최신순, 헤더 순서: 방문일자/매장명/매장사진/지역/시군구/담당자/...) ─────────
+      // ───────── 로그 탭: 방문당 1행 (사진은 매장의 사진 수에 따라 가변 컬럼) ─────────
+      // 이 브랜드 매장들 중 가장 사진 많이 가진 매장 기준으로 컬럼 수 결정
+      const maxPhotos =
+        storeRows.length > 0
+          ? Math.max(0, ...storeRows.map((s) => s.photoPaths.length))
+          : 0;
+      logMaxPhotos.set(brandName, maxPhotos);
+
       type LogEntry = {
         date: string;
         storeName: string;
-        storePhoto: string; // IMAGE 수식 또는 빈 문자열
+        storePhotos: string[]; // length === maxPhotos, 빈 자리는 ""
         regionGroup: string;
         sigungu: string;
         assignee: string;
@@ -766,19 +784,18 @@ export async function syncVisitsToSheets() {
       const logEntries: LogEntry[] = [];
       for (const s of storeRows) {
         const storeVisits = visitsByStore.get(s.storeId) ?? [];
-        // 매장 첫 사진의 signed URL을 IMAGE 수식으로 (mode=1: 셀에 맞게 비율 유지)
-        const firstPhotoPath = s.photoPaths[0];
-        const firstPhotoUrl = firstPhotoPath
-          ? signedUrlByPath.get(firstPhotoPath)
-          : undefined;
-        const storePhotoFormula = firstPhotoUrl
-          ? `=IMAGE("${firstPhotoUrl}", 1)`
-          : "";
+        // 매장의 모든 사진을 IMAGE 수식 배열로. 사진 부족분은 빈 문자열로 패딩.
+        const photoFormulas: string[] = [];
+        for (let i = 0; i < maxPhotos; i++) {
+          const path = s.photoPaths[i];
+          const url = path ? signedUrlByPath.get(path) : undefined;
+          photoFormulas.push(url ? `=IMAGE("${url}", 1)` : "");
+        }
         for (const v of storeVisits) {
           logEntries.push({
             date: v.visit_date,
             storeName: s.storeName,
-            storePhoto: storePhotoFormula,
+            storePhotos: photoFormulas,
             regionGroup: s.regionGroup,
             sigungu: s.sigungu,
             assignee: memberNames.get(v.user_id) ?? "알 수 없음",
@@ -795,12 +812,13 @@ export async function syncVisitsToSheets() {
       logEntries.sort((a, b) => b.date.localeCompare(a.date));
       logRowCounts.set(brandName, logEntries.length);
 
-      const logRows: (string | number)[][] = [LOG_HEADERS];
+      const tabHeaders = buildLogHeaders(maxPhotos);
+      const logRows: (string | number)[][] = [tabHeaders];
       for (const e of logEntries) {
         logRows.push([
           format(parseISO(e.date), "yyyy-MM-dd"),
           e.storeName,
-          e.storePhoto,
+          ...e.storePhotos,
           e.regionGroup,
           e.sigungu,
           e.assignee,
@@ -843,7 +861,13 @@ export async function syncVisitsToSheets() {
       const logSheetId = sheetIdByTitle.get(logName);
       if (logSheetId === undefined) continue;
 
-      // 기본 필터 (매장명 등 모든 컬럼 헤더에서 필터/정렬 가능)
+      const maxPhotos = logMaxPhotos.get(brandName) ?? 0;
+      const headerLength =
+        LOG_HEADERS_BEFORE_PHOTOS.length +
+        maxPhotos +
+        LOG_HEADERS_AFTER_PHOTOS.length;
+
+      // 기본 필터 (모든 컬럼 헤더에서 필터/정렬 가능)
       calendarBatchRequests.push({
         setBasicFilter: {
           filter: {
@@ -851,29 +875,31 @@ export async function syncVisitsToSheets() {
               sheetId: logSheetId,
               startRowIndex: 0,
               startColumnIndex: 0,
-              endColumnIndex: LOG_HEADERS.length,
+              endColumnIndex: headerLength,
             },
           },
         },
       });
 
-      // 매장 사진 컬럼 폭 (IMAGE 썸네일 표시용)
-      calendarBatchRequests.push({
-        updateDimensionProperties: {
-          range: {
-            sheetId: logSheetId,
-            dimension: "COLUMNS",
-            startIndex: STORE_PHOTO_COL_INDEX,
-            endIndex: STORE_PHOTO_COL_INDEX + 1,
+      // 매장 사진 컬럼 폭 (사진 컬럼이 있을 때만)
+      if (maxPhotos > 0) {
+        calendarBatchRequests.push({
+          updateDimensionProperties: {
+            range: {
+              sheetId: logSheetId,
+              dimension: "COLUMNS",
+              startIndex: STORE_PHOTO_COL_START,
+              endIndex: STORE_PHOTO_COL_START + maxPhotos,
+            },
+            properties: { pixelSize: 100 },
+            fields: "pixelSize",
           },
-          properties: { pixelSize: 100 },
-          fields: "pixelSize",
-        },
-      });
+        });
+      }
 
-      // 데이터 행 높이 (헤더 다음 행부터)
+      // 데이터 행 높이 (사진 컬럼이 있을 때만 — 썸네일 표시용)
       const dataRowCount = logRowCounts.get(brandName) ?? 0;
-      if (dataRowCount > 0) {
+      if (dataRowCount > 0 && maxPhotos > 0) {
         calendarBatchRequests.push({
           updateDimensionProperties: {
             range: {
