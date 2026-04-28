@@ -2,7 +2,7 @@
 
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
-import { useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import type { Brand, RegionGroup } from "@/lib/types/db";
 import type {
   StorePicker,
@@ -48,11 +48,20 @@ export function VisitPanel({
   const [sigungu, setSigungu] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [memoVisit, setMemoVisit] = useState<VisitCell | null>(null);
-  const addSectionRef = useRef<HTMLElement | null>(null);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
   const handleAddClick = () => {
-    addSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    setIsAddModalOpen(true);
   };
+
+  useEffect(() => {
+    if (!isAddModalOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setIsAddModalOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [isAddModalOpen]);
 
   // 매장 목록에 실제로 등록된 브랜드만 — 매장 0개인 브랜드는 단계에서 숨김
   const availableBrands = useMemo(() => {
@@ -285,6 +294,77 @@ export function VisitPanel({
           onClose={() => setMemoVisit(null)}
           onSaved={onChange}
         />
+      )}
+
+      {isAddModalOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setIsAddModalOpen(false)}
+        >
+          <div
+            className="flex h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <header className="flex shrink-0 items-start justify-between gap-3 border-b border-neutral-100 px-5 py-4">
+              <div className="min-w-0">
+                <h2 className="text-base font-semibold text-neutral-900">
+                  {format(date, "yyyy년 M월 d일 (E)", { locale: ko })}
+                </h2>
+                <p className="mt-0.5 text-xs text-neutral-500">
+                  방문 {visits.length}건
+                </p>
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1 rounded-md bg-blue-600 px-2.5 py-1.5 text-xs font-medium text-white shadow-sm transition hover:bg-blue-700"
+                >
+                  <span aria-hidden>+</span>
+                  <span>매장 추가</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsAddModalOpen(false)}
+                  className="rounded-md p-1 text-neutral-400 transition hover:bg-neutral-100 hover:text-neutral-700"
+                  aria-label="닫기"
+                >
+                  ✕
+                </button>
+              </div>
+            </header>
+
+            <div className="flex-1 overflow-y-auto">
+              {visits.length === 0 ? (
+                <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
+                  <p className="text-2xl font-bold text-neutral-800">
+                    추가된 매장이 없습니다
+                  </p>
+                  <p className="text-sm text-neutral-400">
+                    우측 상단의 <span className="font-semibold text-neutral-600">+ 매장 추가</span> 버튼으로 매장을 추가해 보세요
+                  </p>
+                </div>
+              ) : (
+                <ul className="space-y-1 px-5 py-4">
+                  {visits.map((v) => (
+                    <li
+                      key={v.id}
+                      className="flex items-center gap-2 rounded-md px-2 py-1.5"
+                    >
+                      <span aria-hidden className="text-neutral-400">
+                        ⋅
+                      </span>
+                      <span className="truncate text-sm text-neutral-800">
+                        {v.store?.name ?? "-"}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </aside>
   );
