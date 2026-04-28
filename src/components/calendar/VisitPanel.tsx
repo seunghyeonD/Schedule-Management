@@ -233,64 +233,28 @@ export function VisitPanel({
             </p>
           </div>
         ) : (
-          <ul className="space-y-1.5">
+          <ul className="space-y-1">
             {visits.map((v) => {
-              const c = brandColor(v.store?.brand?.id);
-              const hasMemo =
-                !!v.store_position ||
-                !!v.customer_count ||
-                !!v.sales_trend ||
-                !!v.activity ||
-                !!v.display_type ||
-                !!v.requests ||
-                (v.photo_paths?.length ?? 0) > 0;
               const isOwn = !!currentUserId && v.user_id === currentUserId;
-              const recorderLabel = v.recorder
-                ? v.recorder.display_name?.trim() || v.recorder.email
-                : null;
               return (
                 <li
                   key={v.id}
-                  className="group flex items-center gap-2 rounded-lg border border-neutral-100 px-2.5 py-2 hover:border-neutral-300"
+                  className="group flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-neutral-50"
                 >
                   <button
                     type="button"
                     onClick={() => setMemoVisit(v)}
                     className="flex min-w-0 flex-1 items-center gap-2 text-left"
                   >
-                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-[10px] font-medium tabular-nums text-neutral-600">
-                      {v.visit_order}
-                    </span>
                     <span
-                      className={`h-2 w-2 shrink-0 rounded-full ${c.dot}`}
                       aria-hidden
-                    />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5">
-                        <span className="truncate text-sm text-neutral-900">
-                          {v.store?.name ?? "-"}
-                        </span>
-                        {hasMemo && (
-                          <span
-                            title="메모 있음"
-                            className="text-[10px] text-neutral-400"
-                          >
-                            📝
-                          </span>
-                        )}
-                        {recorderLabel && (
-                          <span className="ml-auto shrink-0 truncate rounded-full bg-neutral-100 px-1.5 py-0.5 text-[10px] text-neutral-600">
-                            {recorderLabel}
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex gap-1 text-[10px] text-neutral-500">
-                        {v.store?.brand && <span>{v.store.brand.name}</span>}
-                        {v.store?.region_group && (
-                          <span>· {v.store.region_group.name}</span>
-                        )}
-                      </div>
-                    </div>
+                      className="shrink-0 text-neutral-400"
+                    >
+                      ⋅
+                    </span>
+                    <span className="truncate text-sm text-neutral-800">
+                      {v.store?.name ?? "-"}
+                    </span>
                   </button>
                   {isOwn && (
                     <button
