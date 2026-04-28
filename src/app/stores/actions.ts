@@ -133,19 +133,23 @@ export async function createStore(input: z.input<typeof storeSchema>) {
     regionGroupId = mapping?.region_group_id ?? null;
   }
 
-  const { error } = await supabase.from("stores").insert({
-    brand_id: parsed.data.brand_id,
-    name: parsed.data.name,
-    address: parsed.data.address,
-    address_detail: parsed.data.address_detail ?? null,
-    postal_code: parsed.data.postal_code ?? null,
-    sido: parsed.data.sido ?? null,
-    sigungu: parsed.data.sigungu ?? null,
-    region_group_id: regionGroupId,
-    photo_paths: parsed.data.photo_paths ?? [],
-    created_by: user.id,
-    organization_id: orgId,
-  });
+  const { data: inserted, error } = await supabase
+    .from("stores")
+    .insert({
+      brand_id: parsed.data.brand_id,
+      name: parsed.data.name,
+      address: parsed.data.address,
+      address_detail: parsed.data.address_detail ?? null,
+      postal_code: parsed.data.postal_code ?? null,
+      sido: parsed.data.sido ?? null,
+      sigungu: parsed.data.sigungu ?? null,
+      region_group_id: regionGroupId,
+      photo_paths: parsed.data.photo_paths ?? [],
+      created_by: user.id,
+      organization_id: orgId,
+    })
+    .select("id, name, brand_id, region_group_id, sigungu")
+    .single();
 
   if (error) {
     if (error.code === "23505")
@@ -154,7 +158,8 @@ export async function createStore(input: z.input<typeof storeSchema>) {
   }
 
   revalidatePath("/stores");
-  return { ok: true };
+  revalidatePath("/");
+  return { ok: true, store: inserted };
 }
 
 const updateStoreSchema = z.object({
