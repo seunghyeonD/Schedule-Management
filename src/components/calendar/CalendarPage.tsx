@@ -31,6 +31,7 @@ type Props = {
   initialVisits: VisitCell[];
   sheetsConnected: boolean;
   initialLastSyncedAt: string | null;
+  currentUserId: string | null;
 };
 
 type OptimisticAction =
@@ -46,6 +47,7 @@ export function CalendarPage({
   initialVisits,
   sheetsConnected,
   initialLastSyncedAt,
+  currentUserId,
 }: Props) {
   const [month, setMonth] = useState<Date>(new Date());
   const [selected, setSelected] = useState<Date | null>(null);
@@ -102,6 +104,7 @@ export function CalendarPage({
 
     const optimisticVisit: VisitCell = {
       id: `__optimistic_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+      user_id: currentUserId ?? "",
       visit_date: visitDate,
       visit_order: dayVisits.length + 1,
       store_position: null,
@@ -120,6 +123,9 @@ export function CalendarPage({
           ? { id: store.region_group_id, name: regionGroupName ?? "" }
           : null,
       },
+      // 본인이 추가한 visit이라 어차피 본인 화면에서 굳이 라벨 안 띄워도 됨.
+      // 다음 페이지 갱신 때 서버에서 마스터인 경우 recorder가 채워져 들어옴.
+      recorder: null,
     };
 
     applyOptimistic({ type: "add", visit: optimisticVisit });
@@ -303,6 +309,7 @@ export function CalendarPage({
         brands={brands}
         regionGroups={regionGroups}
         stores={stores}
+        currentUserId={currentUserId}
         onAddVisit={handleAddVisit}
         onDeleteVisit={handleDeleteVisit}
         onChange={markDirty}
