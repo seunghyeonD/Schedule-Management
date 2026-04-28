@@ -28,11 +28,15 @@ export async function createBrand(formData: FormData) {
   const orgId = await getCurrentOrgId();
   if (!orgId) return { error: "기업이 선택되지 않았습니다" };
 
-  const { error } = await supabase.from("brands").insert({
-    name: parsed.data.name,
-    created_by: user.id,
-    organization_id: orgId,
-  });
+  const { data: inserted, error } = await supabase
+    .from("brands")
+    .insert({
+      name: parsed.data.name,
+      created_by: user.id,
+      organization_id: orgId,
+    })
+    .select("id, name")
+    .single();
 
   if (error) {
     if (error.code === "23505") return { error: "이미 등록된 브랜드입니다" };
@@ -46,7 +50,7 @@ export async function createBrand(formData: FormData) {
   });
 
   revalidatePath("/stores");
-  return { ok: true };
+  return { ok: true, brand: inserted };
 }
 
 export async function deleteBrand(brandId: string) {
