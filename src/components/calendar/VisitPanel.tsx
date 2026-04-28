@@ -17,6 +17,7 @@ type Props = {
   brands: Brand[];
   regionGroups: RegionGroup[];
   stores: StorePicker[];
+  currentUserId: string | null;
   onAddVisit: (
     store: StorePicker,
     storeName: string,
@@ -35,6 +36,7 @@ export function VisitPanel({
   brands,
   regionGroups,
   stores,
+  currentUserId,
   onAddVisit,
   onDeleteVisit,
   onChange,
@@ -190,6 +192,10 @@ export function VisitPanel({
                 !!v.display_type ||
                 !!v.requests ||
                 (v.photo_paths?.length ?? 0) > 0;
+              const isOwn = !!currentUserId && v.user_id === currentUserId;
+              const recorderLabel = v.recorder
+                ? v.recorder.display_name?.trim() || v.recorder.email
+                : null;
               return (
                 <li
                   key={v.id}
@@ -220,6 +226,11 @@ export function VisitPanel({
                             📝
                           </span>
                         )}
+                        {recorderLabel && (
+                          <span className="ml-auto shrink-0 truncate rounded-full bg-neutral-100 px-1.5 py-0.5 text-[10px] text-neutral-600">
+                            {recorderLabel}
+                          </span>
+                        )}
                       </div>
                       <div className="flex gap-1 text-[10px] text-neutral-500">
                         {v.store?.brand && <span>{v.store.brand.name}</span>}
@@ -229,17 +240,19 @@ export function VisitPanel({
                       </div>
                     </div>
                   </button>
-                  <button
-                    disabled={isPending}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDelete(v.id);
-                    }}
-                    className="text-xs text-neutral-400 opacity-0 transition hover:text-red-600 group-hover:opacity-100 disabled:opacity-50"
-                    aria-label="삭제"
-                  >
-                    ✕
-                  </button>
+                  {isOwn && (
+                    <button
+                      disabled={isPending}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDelete(v.id);
+                      }}
+                      className="text-xs text-neutral-400 opacity-0 transition hover:text-red-600 group-hover:opacity-100 disabled:opacity-50"
+                      aria-label="삭제"
+                    >
+                      ✕
+                    </button>
+                  )}
                 </li>
               );
             })}
@@ -344,6 +357,7 @@ export function VisitPanel({
       {memoVisit && (
         <VisitMemoModal
           visit={memoVisit}
+          currentUserId={currentUserId}
           onClose={() => setMemoVisit(null)}
           onSaved={onChange}
         />
