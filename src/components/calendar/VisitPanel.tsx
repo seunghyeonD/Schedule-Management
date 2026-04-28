@@ -318,7 +318,7 @@ export function VisitPanel({
                   {format(date, "yyyy년 M월 d일 (E)", { locale: ko })}
                 </h2>
                 <p className="mt-0.5 text-xs text-neutral-500">
-                  방문 {visits.length}건
+                  매장 {stores.length}개
                 </p>
               </div>
               <div className="flex shrink-0 items-center gap-2">
@@ -359,32 +359,14 @@ export function VisitPanel({
                   orgId={orgId}
                   submitLabel="완료"
                   submitFullWidth
-                  onCreated={async (store) => {
-                    const brand = brands.find((b) => b.id === store.brand_id);
-                    const regionGroup = store.region_group_id
-                      ? regionGroups.find(
-                          (g) => g.id === store.region_group_id,
-                        )
-                      : null;
-                    await onAddVisit(
-                      {
-                        id: store.id,
-                        name: store.name,
-                        brand_id: store.brand_id,
-                        region_group_id: store.region_group_id,
-                        sigungu: store.sigungu,
-                      },
-                      store.name,
-                      brand?.name ?? "",
-                      regionGroup?.name ?? null,
-                    );
+                  onCreated={() => {
                     setIsStoreFormOpen(false);
                   }}
                 />
               </div>
             ) : (
               <div className="flex-1 overflow-x-hidden overflow-y-auto">
-                {visits.length === 0 ? (
+                {stores.length === 0 ? (
                   <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
                     <p className="text-2xl font-bold text-neutral-800">
                       추가된 매장이 없습니다
@@ -395,16 +377,16 @@ export function VisitPanel({
                   </div>
                 ) : (
                   <ul className="space-y-1 px-5 py-4">
-                    {visits.map((v) => (
+                    {stores.map((s) => (
                       <li
-                        key={v.id}
+                        key={s.id}
                         className="flex items-center gap-2 rounded-md px-2 py-1.5"
                       >
                         <span aria-hidden className="text-neutral-400">
                           ⋅
                         </span>
                         <span className="truncate text-sm text-neutral-800">
-                          {v.store?.name ?? "-"}
+                          {s.name}
                         </span>
                       </li>
                     ))}
