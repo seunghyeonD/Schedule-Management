@@ -147,7 +147,19 @@ export function CalendarPage({
   };
 
   return (
-    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_380px]">
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[380px_1fr]">
+      <VisitPanel
+        date={selected}
+        visits={selectedVisits}
+        brands={brands}
+        regionGroups={regionGroups}
+        stores={stores}
+        currentUserId={currentUserId}
+        onAddVisit={handleAddVisit}
+        onDeleteVisit={handleDeleteVisit}
+        onChange={markDirty}
+      />
+
       <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white">
         <div className="flex items-center justify-between gap-2 border-b border-neutral-100 px-3 py-2.5 sm:px-4 sm:py-3">
           <div className="flex items-center gap-1 sm:gap-2">
@@ -312,18 +324,6 @@ export function CalendarPage({
           })}
         </div>
       </div>
-
-      <VisitPanel
-        date={selected}
-        visits={selectedVisits}
-        brands={brands}
-        regionGroups={regionGroups}
-        stores={stores}
-        currentUserId={currentUserId}
-        onAddVisit={handleAddVisit}
-        onDeleteVisit={handleDeleteVisit}
-        onChange={markDirty}
-      />
     </div>
   );
 }
