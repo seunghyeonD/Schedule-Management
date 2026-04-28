@@ -16,7 +16,7 @@ export default async function AppHeader() {
 
   return (
     <header className="border-b border-neutral-200 bg-white">
-      <div className="mx-auto flex max-w-6xl items-center justify-between gap-2 px-4 py-3 sm:px-6">
+      <div className="mx-auto flex max-w-[1600px] items-center justify-between gap-2 px-4 py-3 sm:px-6">
         <div className="flex min-w-0 items-center gap-3 sm:gap-6">
           {/* 데스크탑(sm 이상)에서만 인라인 메뉴 노출. 모바일은 하단 탭바 사용 */}
           <DesktopNav />
