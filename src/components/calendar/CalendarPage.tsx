@@ -168,7 +168,7 @@ export function CalendarPage({
         />
       </div>
 
-      <div className="order-1 overflow-hidden rounded-2xl border border-neutral-200 bg-white lg:order-none lg:flex lg:h-full lg:flex-col lg:min-h-0">
+      <div className="order-1 -mx-4 -mb-4 overflow-hidden bg-white sm:mx-0 sm:mb-0 sm:rounded-2xl sm:border sm:border-neutral-200 lg:order-none lg:flex lg:h-full lg:flex-col lg:min-h-0">
         <div className="flex items-center justify-between gap-2 border-b border-neutral-100 px-3 py-2.5 sm:px-4 sm:py-3">
           <div className="flex items-center gap-1 sm:gap-2">
             <button
