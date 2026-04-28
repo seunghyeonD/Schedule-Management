@@ -254,7 +254,12 @@ export function VisitOrderSummaryModal({ date, visits, onClose }: Props) {
 function ItemLine({ name, qty }: { name: string; qty: number }) {
   return (
     <li className="flex items-baseline gap-2 text-base">
-      <span className="min-w-0 flex-1 truncate">{name}</span>
+      <span className="shrink-0">{name}</span>
+      <span
+        aria-hidden
+        className="min-w-[12px] flex-1 border-b border-dotted border-neutral-300"
+        style={{ marginBottom: "5px" }}
+      />
       <span className="shrink-0 tabular-nums">x {qty}</span>
     </li>
   );
