@@ -1,6 +1,4 @@
 import AppHeader from "@/components/AppHeader";
-import { BrandForm } from "@/components/stores/BrandForm";
-import { BrandList } from "@/components/stores/BrandList";
 import { StoreList } from "@/components/stores/StoreList";
 import { getCurrentOrgId } from "@/lib/org/current";
 import {
@@ -27,18 +25,8 @@ export default async function StoresPage() {
           매장 관리
         </h1>
         <p className="mt-1 text-xs text-neutral-500 sm:text-sm">
-          브랜드와 매장을 등록합니다. 주소를 선택하면 지역 그룹이 자동으로 매칭됩니다.
+          매장 추가 시 브랜드도 함께 등록할 수 있습니다. 주소를 선택하면 지역 그룹이 자동으로 매칭됩니다.
         </p>
-
-        <section className="mt-4 rounded-2xl border border-neutral-200 bg-white p-4 sm:mt-6 sm:p-5">
-          <h2 className="text-sm font-semibold text-neutral-800">브랜드</h2>
-          <div className="mt-3">
-            <BrandForm />
-          </div>
-          <div className="mt-3">
-            <BrandList brands={brands} />
-          </div>
-        </section>
 
         <div className="mt-4 sm:mt-6">
           <StoreList
