@@ -621,7 +621,7 @@ export function StoreForm({
           <button
             type="submit"
             disabled={isPending || !name || !address || !brandId}
-            className="w-full rounded-lg bg-point px-4 py-3 text-base font-semibold text-neutral-900 shadow-sm transition hover:bg-point-hover disabled:cursor-not-allowed disabled:opacity-50"
+            className="w-full rounded-lg bg-neutral-900 px-4 py-3 text-base font-semibold text-white shadow-sm transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {isPending ? "저장 중…" : submitLabel}
           </button>
