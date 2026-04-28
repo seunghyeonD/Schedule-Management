@@ -207,9 +207,31 @@ export function VisitPanel({
       <div className="lg:flex-1 lg:min-h-0 lg:overflow-y-auto lg:rounded-b-2xl">
       <section className="px-5 py-4">
         {visits.length === 0 ? (
-          <p className="py-4 text-center text-xs text-neutral-400">
-            등록된 방문이 없습니다
-          </p>
+          <div className="flex flex-col items-center justify-center gap-3 px-6 py-20 text-center">
+            <svg
+              width="56"
+              height="56"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="text-neutral-300"
+              aria-hidden
+            >
+              <rect x="3" y="4.5" width="18" height="16" rx="2" />
+              <path d="M3 9.5h18" />
+              <path d="M8 3v3" />
+              <path d="M16 3v3" />
+            </svg>
+            <p className="text-xl font-bold text-neutral-800">
+              등록된 방문이 없습니다
+            </p>
+            <p className="text-sm text-neutral-500">
+              우측 상단의 <span className="font-semibold text-neutral-700">+ 일정추가</span> 버튼으로 방문을 등록해 보세요
+            </p>
+          </div>
         ) : (
           <ul className="space-y-1.5">
             {visits.map((v) => {
@@ -290,102 +312,6 @@ export function VisitPanel({
         )}
       </section>
 
-      <section
-        ref={addSectionRef}
-        className="border-t border-neutral-100 bg-neutral-50/50 px-5 py-4"
-      >
-        <div className="mb-3 flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-neutral-800">방문 추가</h3>
-          {step !== "brand" && (
-            <button
-              onClick={resetFlow}
-              className="text-xs text-neutral-500 hover:text-neutral-900"
-            >
-              ↺ 처음부터
-            </button>
-          )}
-        </div>
-
-        <div className="mb-3 flex flex-wrap items-center gap-1 text-[11px]">
-          <StepChip
-            label={selectedBrand?.name ?? "브랜드"}
-            active={step === "brand"}
-            done={!!brandId}
-            onClick={() => brandId && stepBack("brand")}
-          />
-          <span className="text-neutral-300">›</span>
-          <StepChip
-            label={selectedRegion?.name ?? "지역"}
-            active={step === "region"}
-            done={!!regionGroupId}
-            onClick={() => regionGroupId && stepBack("region")}
-          />
-          <span className="text-neutral-300">›</span>
-          <StepChip
-            label={sigungu ?? "시/군/구"}
-            active={step === "sigungu"}
-            done={!!sigungu}
-            onClick={() => sigungu && stepBack("sigungu")}
-          />
-          <span className="text-neutral-300">›</span>
-          <StepChip label="매장" active={step === "store"} done={false} />
-        </div>
-
-        <div>
-          {step === "brand" && (
-            <PickList
-              items={availableBrands.map((b) => ({
-                id: b.id,
-                label: b.name,
-                color: brandColor(b.id).dot,
-              }))}
-              onPick={(id) => {
-                setBrandId(id);
-                setStep("region");
-              }}
-              emptyText="먼저 매장 관리 페이지에서 매장을 등록하세요"
-            />
-          )}
-          {step === "region" && (
-            <PickList
-              items={availableRegionGroups.map((g) => ({
-                id: g.id,
-                label: g.name,
-              }))}
-              onPick={(id) => {
-                setRegionGroupId(id);
-                setStep("sigungu");
-              }}
-              emptyText="이 브랜드에 등록된 매장이 없습니다"
-            />
-          )}
-          {step === "sigungu" && (
-            <PickList
-              items={sigunguList.map((s) => ({ id: s, label: s }))}
-              onPick={(id) => {
-                setSigungu(id);
-                setStep("store");
-              }}
-              emptyText="이 조건에 해당하는 매장이 없습니다"
-            />
-          )}
-          {step === "store" && (
-            <PickList
-              items={storesFiltered.map((s) => ({
-                id: s.id,
-                label: s.name,
-                muted: existingStoreIds.has(s.id),
-              }))}
-              onPick={(id) => {
-                const s = storesFiltered.find((x) => x.id === id);
-                if (s) handleAdd(s.id, s.name);
-              }}
-              emptyText="매장이 없습니다"
-            />
-          )}
-        </div>
-        {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
-      </section>
       </div>
 
       {memoVisit && (
