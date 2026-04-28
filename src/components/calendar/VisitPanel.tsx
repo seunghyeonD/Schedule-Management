@@ -191,7 +191,7 @@ export function VisitPanel({
             <button
               type="button"
               onClick={handleAddClick}
-              className="inline-flex items-center gap-1 rounded-md bg-point px-2.5 py-1.5 text-xs font-semibold text-neutral-900 shadow-sm transition hover:bg-point-hover"
+              className="inline-flex items-center gap-1 rounded-md bg-neutral-900 px-2.5 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-neutral-800"
             >
               <span aria-hidden>+</span>
               <span>일정추가</span>
@@ -446,7 +446,7 @@ export function VisitPanel({
                   <button
                     type="button"
                     onClick={() => setIsStoreFormOpen(true)}
-                    className="inline-flex items-center gap-1 rounded-md bg-point px-2.5 py-1.5 text-xs font-semibold text-neutral-900 shadow-sm transition hover:bg-point-hover"
+                    className="inline-flex items-center gap-1 rounded-md bg-neutral-900 px-2.5 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-neutral-800"
                   >
                     <span aria-hidden>+</span>
                     <span>매장 추가</span>
@@ -549,7 +549,7 @@ export function VisitPanel({
                           selectedStoreIds.size === 0 || isPending
                         }
                         onClick={handleConfirmAddVisits}
-                        className="w-full rounded-lg bg-point px-4 py-3 text-base font-semibold text-neutral-900 shadow-sm transition hover:bg-point-hover disabled:cursor-not-allowed disabled:opacity-50"
+                        className="w-full rounded-lg bg-neutral-900 px-4 py-3 text-base font-semibold text-white shadow-sm transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         완료
                         {selectedStoreIds.size > 0
