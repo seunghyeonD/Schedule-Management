@@ -253,9 +253,6 @@ export function VisitPanel({
             {visits.map((v) => {
               const c = brandColor(v.store?.brand?.id, v.store?.brand?.name);
               const tag = brandTagProps(c);
-              const recorderLabel = v.recorder
-                ? v.recorder.display_name?.trim() || v.recorder.email
-                : null;
               return (
                 <li key={v.id}>
                   <button
@@ -266,23 +263,18 @@ export function VisitPanel({
                     <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-sm font-semibold tabular-nums text-neutral-700">
                       {v.visit_order}
                     </span>
-                    <p className="min-w-0 flex-1 truncate text-base font-semibold text-neutral-900">
-                      {v.store?.name ?? "-"}
-                    </p>
-                    <div className="flex shrink-0 items-center gap-2 text-xs">
-                      {recorderLabel && (
-                        <span className="truncate text-neutral-500">
-                          {recorderLabel}
-                        </span>
-                      )}
+                    <div className="min-w-0 flex-1">
                       {v.store?.brand?.name && (
                         <span
-                          className={`inline-flex items-center rounded-full px-2 py-0.5 font-medium ${tag.className}`}
+                          className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${tag.className}`}
                           style={tag.style}
                         >
                           {v.store.brand.name}
                         </span>
                       )}
+                      <p className="mt-1 truncate text-base font-semibold text-neutral-900">
+                        {v.store?.name ?? "-"}
+                      </p>
                     </div>
                     <span
                       aria-hidden
