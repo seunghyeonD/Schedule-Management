@@ -1,8 +1,9 @@
 import { createClient } from "@/lib/supabase/server";
-import { getCurrentOrgId } from "@/lib/org/current";
+import { getCurrentOrgId, isCurrentUserMaster } from "@/lib/org/current";
 
 export type VisitCell = {
   id: string;
+  user_id: string;
   visit_date: string;
   visit_order: number;
   store_position: string | null;
@@ -19,9 +20,12 @@ export type VisitCell = {
     brand: { id: string; name: string } | null;
     region_group: { id: string; name: string } | null;
   } | null;
+  // 마스터 뷰일 때만 채워짐 — 멤버는 본인 것만 보이므로 null로 둠.
+  recorder: { display_name: string | null; email: string } | null;
 };
 
-// 캘린더에는 본인의 방문만 표시 (팀 전체 보기는 별도 화면 — 추후)
+// 멤버: 본인의 방문만 표시.
+// 마스터: org 전체 멤버의 방문 표시 (등록자 이름 같이 노출).
 export async function getVisitsInRange(
   fromDate: string,
   toDate: string,
@@ -35,10 +39,12 @@ export async function getVisitsInRange(
   const orgId = await getCurrentOrgId();
   if (!orgId) return [];
 
-  const { data, error } = await supabase
+  const isMaster = await isCurrentUserMaster(orgId);
+
+  let query = supabase
     .from("visits")
     .select(
-      `id, visit_date, visit_order,
+      `id, user_id, visit_date, visit_order,
        store_position, customer_count, sales_trend, activity, display_type, requests, photo_paths,
        store:stores(
          id, name, deleted_at,
@@ -46,15 +52,42 @@ export async function getVisitsInRange(
          region_group:region_groups(id, name)
        )`,
     )
-    .eq("user_id", user.id)
     .eq("organization_id", orgId)
     .gte("visit_date", fromDate)
     .lte("visit_date", toDate)
     .order("visit_date")
     .order("visit_order");
 
+  if (!isMaster) query = query.eq("user_id", user.id);
+
+  const { data, error } = await query;
   if (error) throw error;
-  const rows = (data ?? []) as unknown as VisitCell[];
+
+  const baseRows = (data ?? []) as unknown as Omit<VisitCell, "recorder">[];
+
+  // 마스터 뷰면 등록자 profile (display_name/email) join — 다른 멤버의 visits에 라벨 달기용.
+  let recorderById = new Map<
+    string,
+    { display_name: string | null; email: string }
+  >();
+  if (isMaster && baseRows.length > 0) {
+    const userIds = Array.from(new Set(baseRows.map((v) => v.user_id)));
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("id, display_name, email")
+      .in("id", userIds);
+    for (const p of profiles ?? []) {
+      recorderById.set(p.id as string, {
+        display_name: (p.display_name as string | null) ?? null,
+        email: p.email as string,
+      });
+    }
+  }
+
+  const rows: VisitCell[] = baseRows.map((v) => ({
+    ...v,
+    recorder: recorderById.get(v.user_id) ?? null,
+  }));
   return rows.filter((v) => v.store && !v.store.deleted_at);
 }
 
