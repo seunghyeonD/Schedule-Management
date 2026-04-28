@@ -141,70 +141,80 @@ export function VisitOrderSummaryModal({ date, visits, onClose }: Props) {
                 </p>
               ) : (
                 <>
-                  {visits.map((v) => {
-                    const its = itemsByVisit.get(v.id) ?? [];
-                    if (its.length === 0) return null;
-                    const orders = its.filter((i) => i.kind === "order");
-                    const returns = its.filter((i) => i.kind === "return");
-                    const fullAddress = [
-                      v.store?.address,
-                      v.store?.address_detail,
-                    ]
-                      .filter(Boolean)
-                      .join(" ");
-                    return (
-                      <div key={v.id} className="mb-5 last:mb-0">
-                        <p className="text-lg font-bold">
-                          [{v.visit_order}] {v.store?.name ?? "-"}
-                        </p>
-                        {v.store?.brand?.name && (
-                          <p className="mt-0.5 text-sm text-neutral-600">
-                            {v.store.brand.name}
-                          </p>
-                        )}
-                        {fullAddress && (
-                          <p className="mt-0.5 text-sm leading-snug text-neutral-600">
-                            {fullAddress}
-                          </p>
-                        )}
-                        <div className="my-2.5 border-t border-dotted border-neutral-300" />
-
-                        {orders.length > 0 && (
-                          <>
-                            <p className="text-base font-semibold">주문</p>
-                            <ul className="mt-1.5 space-y-1">
-                              {orders.map((it) => (
-                                <ItemLine
-                                  key={it.id}
-                                  name={it.product_name}
-                                  qty={it.quantity}
-                                />
-                              ))}
-                            </ul>
-                          </>
-                        )}
-
-                        {returns.length > 0 && (
-                          <>
-                            <p
-                              className={`text-base font-semibold ${orders.length > 0 ? "mt-3" : ""}`}
-                            >
-                              반품
+                  {visits
+                    .filter(
+                      (v) => (itemsByVisit.get(v.id) ?? []).length > 0,
+                    )
+                    .map((v, idx) => {
+                      const its = itemsByVisit.get(v.id) ?? [];
+                      const orders = its.filter((i) => i.kind === "order");
+                      const returns = its.filter(
+                        (i) => i.kind === "return",
+                      );
+                      const fullAddress = [
+                        v.store?.address,
+                        v.store?.address_detail,
+                      ]
+                        .filter(Boolean)
+                        .join(" ");
+                      return (
+                        <div key={v.id}>
+                          {idx > 0 && (
+                            <div className="my-5 border-t-4 border-double border-neutral-400" />
+                          )}
+                          <div className="rounded-md bg-neutral-50/60 px-3 py-3">
+                            <p className="text-lg font-bold">
+                              [{v.visit_order}] {v.store?.name ?? "-"}
                             </p>
-                            <ul className="mt-1.5 space-y-1">
-                              {returns.map((it) => (
-                                <ItemLine
-                                  key={it.id}
-                                  name={it.product_name}
-                                  qty={it.quantity}
-                                />
-                              ))}
-                            </ul>
-                          </>
-                        )}
-                      </div>
-                    );
-                  })}
+                            {v.store?.brand?.name && (
+                              <p className="mt-0.5 text-sm text-neutral-600">
+                                {v.store.brand.name}
+                              </p>
+                            )}
+                            {fullAddress && (
+                              <p className="mt-0.5 text-sm leading-snug text-neutral-600">
+                                {fullAddress}
+                              </p>
+                            )}
+                            <div className="my-2.5 border-t border-dotted border-neutral-300" />
+
+                            {orders.length > 0 && (
+                              <>
+                                <p className="text-base font-semibold">주문</p>
+                                <ul className="mt-1.5 space-y-1">
+                                  {orders.map((it) => (
+                                    <ItemLine
+                                      key={it.id}
+                                      name={it.product_name}
+                                      qty={it.quantity}
+                                    />
+                                  ))}
+                                </ul>
+                              </>
+                            )}
+
+                            {returns.length > 0 && (
+                              <>
+                                <p
+                                  className={`text-base font-semibold ${orders.length > 0 ? "mt-3" : ""}`}
+                                >
+                                  반품
+                                </p>
+                                <ul className="mt-1.5 space-y-1">
+                                  {returns.map((it) => (
+                                    <ItemLine
+                                      key={it.id}
+                                      name={it.product_name}
+                                      qty={it.quantity}
+                                    />
+                                  ))}
+                                </ul>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
 
                   <div className="my-4 border-t border-dashed border-neutral-400" />
                   <div className="space-y-1 text-base">
@@ -253,12 +263,11 @@ export function VisitOrderSummaryModal({ date, visits, onClose }: Props) {
 
 function ItemLine({ name, qty }: { name: string; qty: number }) {
   return (
-    <li className="flex items-baseline gap-2 text-base">
+    <li className="flex items-center gap-2 text-base">
       <span className="shrink-0">{name}</span>
       <span
         aria-hidden
         className="min-w-[12px] flex-1 border-b border-dotted border-neutral-300"
-        style={{ marginBottom: "5px" }}
       />
       <span className="shrink-0 tabular-nums">x {qty}</span>
     </li>
