@@ -168,7 +168,7 @@ export function CalendarPage({
         />
       </div>
 
-      <div className="order-1 -mx-4 -mb-4 overflow-hidden bg-white sm:mx-0 sm:mb-0 sm:rounded-2xl sm:border sm:border-neutral-200 lg:order-none lg:flex lg:h-full lg:flex-col lg:min-h-0">
+      <div className="order-1 -mx-4 overflow-hidden bg-white sm:mx-0 sm:rounded-2xl sm:border sm:border-neutral-200 lg:order-none lg:flex lg:h-full lg:flex-col lg:min-h-0">
         <div className="flex items-center justify-between gap-2 border-b border-neutral-100 px-3 py-2.5 sm:px-4 sm:py-3">
           <div className="flex items-center gap-1 sm:gap-2">
             <button
@@ -229,13 +229,15 @@ export function CalendarPage({
           className="grid grid-cols-7 lg:flex-1 lg:min-h-0"
           style={{ gridTemplateRows: `repeat(${weekCount}, minmax(0, 1fr))` }}
         >
-          {days.map((day) => {
+          {days.map((day, idx) => {
             const key = format(day, "yyyy-MM-dd");
             const inMonth = isSameMonth(day, month);
             const isSelected = selected && isSameDay(day, selected);
             const isToday = isSameDay(day, new Date());
             const dayVisits = visitsByDate.get(key) ?? [];
             const weekday = day.getDay();
+            const isLastRow = idx >= days.length - 7;
+            const isLastCol = idx % 7 === 6;
 
             return (
               <button
@@ -244,7 +246,9 @@ export function CalendarPage({
                   setSelected(day);
                   if (!inMonth) setMonth(day);
                 }}
-                className={`group relative min-h-[72px] border-b border-r border-neutral-100 p-1.5 text-left transition sm:min-h-[120px] sm:p-2.5 lg:min-h-0 ${
+                className={`group relative min-h-[72px] p-1.5 text-left transition sm:min-h-[120px] sm:p-2.5 lg:min-h-0 ${
+                  isLastRow ? "" : "border-b border-neutral-100"
+                } ${isLastCol ? "" : "border-r border-neutral-100"} ${
                   isSelected
                     ? "bg-blue-50 ring-2 ring-inset ring-blue-400"
                     : "hover:bg-neutral-50"
