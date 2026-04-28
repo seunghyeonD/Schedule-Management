@@ -10,6 +10,7 @@ import type {
 } from "@/lib/supabase/calendar-queries";
 import { brandColor } from "@/lib/brandColor";
 import { VisitMemoModal } from "./VisitMemoModal";
+import { StoreForm } from "@/components/stores/StoreForm";
 
 type Props = {
   date: Date | null;
@@ -18,6 +19,7 @@ type Props = {
   regionGroups: RegionGroup[];
   stores: StorePicker[];
   currentUserId: string | null;
+  orgId: string | null;
   onAddVisit: (
     store: StorePicker,
     storeName: string,
@@ -37,6 +39,7 @@ export function VisitPanel({
   regionGroups,
   stores,
   currentUserId,
+  orgId,
   onAddVisit,
   onDeleteVisit,
   onChange,
@@ -49,9 +52,11 @@ export function VisitPanel({
   const [error, setError] = useState<string | null>(null);
   const [memoVisit, setMemoVisit] = useState<VisitCell | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isStoreFormOpen, setIsStoreFormOpen] = useState(false);
 
   const handleAddClick = () => {
     setIsAddModalOpen(true);
+    setIsStoreFormOpen(false);
   };
 
   useEffect(() => {
@@ -193,7 +198,7 @@ export function VisitPanel({
           <button
             type="button"
             onClick={handleAddClick}
-            className="inline-flex items-center gap-1 rounded-md bg-blue-600 px-2.5 py-1.5 text-xs font-medium text-white shadow-sm transition hover:bg-blue-700"
+            className="inline-flex items-center gap-1 rounded-md bg-point px-2.5 py-1.5 text-xs font-semibold text-neutral-900 shadow-sm transition hover:bg-point-hover"
           >
             <span aria-hidden>+</span>
             <span>일정추가</span>
@@ -304,7 +309,7 @@ export function VisitPanel({
           onClick={() => setIsAddModalOpen(false)}
         >
           <div
-            className="flex h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+            className="flex h-[85vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <header className="flex shrink-0 items-start justify-between gap-3 border-b border-neutral-100 px-5 py-4">
@@ -317,13 +322,24 @@ export function VisitPanel({
                 </p>
               </div>
               <div className="flex shrink-0 items-center gap-2">
-                <button
-                  type="button"
-                  className="inline-flex items-center gap-1 rounded-md bg-blue-600 px-2.5 py-1.5 text-xs font-medium text-white shadow-sm transition hover:bg-blue-700"
-                >
-                  <span aria-hidden>+</span>
-                  <span>매장 추가</span>
-                </button>
+                {isStoreFormOpen ? (
+                  <button
+                    type="button"
+                    onClick={() => setIsStoreFormOpen(false)}
+                    className="inline-flex items-center gap-1 rounded-md border border-neutral-200 bg-white px-2.5 py-1.5 text-xs font-medium text-neutral-700 transition hover:bg-neutral-50"
+                  >
+                    ← 목록
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setIsStoreFormOpen(true)}
+                    className="inline-flex items-center gap-1 rounded-md bg-point px-2.5 py-1.5 text-xs font-semibold text-neutral-900 shadow-sm transition hover:bg-point-hover"
+                  >
+                    <span aria-hidden>+</span>
+                    <span>매장 추가</span>
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => setIsAddModalOpen(false)}
@@ -335,34 +351,67 @@ export function VisitPanel({
               </div>
             </header>
 
-            <div className="flex-1 overflow-y-auto">
-              {visits.length === 0 ? (
-                <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
-                  <p className="text-2xl font-bold text-neutral-800">
-                    추가된 매장이 없습니다
-                  </p>
-                  <p className="text-sm text-neutral-400">
-                    우측 상단의 <span className="font-semibold text-neutral-600">+ 매장 추가</span> 버튼으로 매장을 추가해 보세요
-                  </p>
-                </div>
-              ) : (
-                <ul className="space-y-1 px-5 py-4">
-                  {visits.map((v) => (
-                    <li
-                      key={v.id}
-                      className="flex items-center gap-2 rounded-md px-2 py-1.5"
-                    >
-                      <span aria-hidden className="text-neutral-400">
-                        ⋅
-                      </span>
-                      <span className="truncate text-sm text-neutral-800">
-                        {v.store?.name ?? "-"}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
+            {isStoreFormOpen ? (
+              <div className="flex flex-1 min-h-0 flex-col">
+                <StoreForm
+                  brands={brands}
+                  regionGroups={regionGroups}
+                  orgId={orgId}
+                  submitLabel="완료"
+                  submitFullWidth
+                  onCreated={async (store) => {
+                    const brand = brands.find((b) => b.id === store.brand_id);
+                    const regionGroup = store.region_group_id
+                      ? regionGroups.find(
+                          (g) => g.id === store.region_group_id,
+                        )
+                      : null;
+                    await onAddVisit(
+                      {
+                        id: store.id,
+                        name: store.name,
+                        brand_id: store.brand_id,
+                        region_group_id: store.region_group_id,
+                        sigungu: store.sigungu,
+                      },
+                      store.name,
+                      brand?.name ?? "",
+                      regionGroup?.name ?? null,
+                    );
+                    setIsStoreFormOpen(false);
+                  }}
+                />
+              </div>
+            ) : (
+              <div className="flex-1 overflow-x-hidden overflow-y-auto">
+                {visits.length === 0 ? (
+                  <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
+                    <p className="text-2xl font-bold text-neutral-800">
+                      추가된 매장이 없습니다
+                    </p>
+                    <p className="text-sm text-neutral-400">
+                      우측 상단의 <span className="font-semibold text-neutral-600">+ 매장 추가</span> 버튼으로 매장을 추가해 보세요
+                    </p>
+                  </div>
+                ) : (
+                  <ul className="space-y-1 px-5 py-4">
+                    {visits.map((v) => (
+                      <li
+                        key={v.id}
+                        className="flex items-center gap-2 rounded-md px-2 py-1.5"
+                      >
+                        <span aria-hidden className="text-neutral-400">
+                          ⋅
+                        </span>
+                        <span className="truncate text-sm text-neutral-800">
+                          {v.store?.name ?? "-"}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -384,7 +433,7 @@ function StepChip({
   const base = "rounded-md px-2 py-0.5 transition";
   if (active) {
     return (
-      <span className={`${base} bg-blue-600 font-medium text-white`}>
+      <span className={`${base} bg-point font-semibold text-neutral-900`}>
         {label}
       </span>
     );
