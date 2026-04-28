@@ -7,6 +7,7 @@ import {
   getVisitsInRange,
 } from "@/lib/supabase/calendar-queries";
 import { getSyncStatus } from "@/app/actions/sheets";
+import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +17,12 @@ export default async function Home() {
   // 넉넉하게 ±12개월을 미리 받아 둠.
   const from = format(startOfMonth(subMonths(now, 12)), "yyyy-MM-dd");
   const to = format(endOfMonth(addMonths(now, 12)), "yyyy-MM-dd");
+
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const currentUserId = user?.id ?? null;
 
   const [brands, regionGroups, stores, visits, syncStatus] = await Promise.all([
     getBrands(),
@@ -43,6 +50,7 @@ export default async function Home() {
             initialVisits={visits}
             sheetsConnected={syncStatus.connected}
             initialLastSyncedAt={syncStatus.lastSyncedAt}
+            currentUserId={currentUserId}
           />
         </div>
       </main>
