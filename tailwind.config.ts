@@ -11,6 +11,10 @@ const config: Config = {
       colors: {
         background: "var(--background)",
         foreground: "var(--foreground)",
+        point: {
+          DEFAULT: "#AED0F5",
+          hover: "#8FB8E8",
+        },
       },
     },
   },
