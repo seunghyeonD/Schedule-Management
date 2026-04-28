@@ -120,6 +120,8 @@ export function CalendarPage({
       store: {
         id: store.id,
         name: storeName,
+        address: null,
+        address_detail: null,
         deleted_at: null,
         brand: { id: store.brand_id, name: brandName },
         region_group: store.region_group_id
