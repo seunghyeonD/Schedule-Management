@@ -3,10 +3,11 @@
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import type { Brand, RegionGroup } from "@/lib/types/db";
-import { createStore } from "@/app/stores/actions";
+import { createBrand, createStore } from "@/app/stores/actions";
 import { createClient } from "@/lib/supabase/client";
 import { searchPlacesByKeyword, type KakaoPlace } from "@/app/actions/kakao";
 import { parseSidoSigungu } from "@/lib/kakao/normalize";
+import { BrandList } from "./BrandList";
 
 const ALLOWED_MIME = [
   "image/jpeg",
@@ -63,6 +64,7 @@ export function StoreForm({
   onCreated,
 }: Props) {
   const [isPending, startTransition] = useTransition();
+  const [brandPending, startBrandTransition] = useTransition();
   const [openPostcode, setOpenPostcode] = useState(false);
   const [searchMode, setSearchMode] = useState<SearchMode>("keyword");
   const [keyword, setKeyword] = useState("");
@@ -72,6 +74,9 @@ export function StoreForm({
   const [error, setError] = useState<string | null>(null);
 
   const [brandId, setBrandId] = useState<string>(brands[0]?.id ?? "");
+  const [addingBrand, setAddingBrand] = useState<boolean>(brands.length === 0);
+  const [newBrandName, setNewBrandName] = useState("");
+  const [brandError, setBrandError] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [address, setAddress] = useState("");
   const [addressDetail, setAddressDetail] = useState("");
@@ -321,12 +326,23 @@ export function StoreForm({
     });
   }
 
-  if (brands.length === 0) {
-    return (
-      <p className="text-sm text-neutral-500">
-        먼저 브랜드를 하나 이상 등록하세요.
-      </p>
-    );
+  function handleAddBrand() {
+    const name = newBrandName.trim();
+    if (!name) return;
+    setBrandError(null);
+    const formData = new FormData();
+    formData.set("name", name);
+    startBrandTransition(async () => {
+      const res = await createBrand(formData);
+      if (res?.error) {
+        setBrandError(res.error);
+        return;
+      }
+      // 새로 추가된 브랜드를 즉시 선택. brands prop은 revalidatePath로 다음 렌더에 갱신됨.
+      if (res?.brand?.id) setBrandId(res.brand.id);
+      setNewBrandName("");
+      setAddingBrand(false);
+    });
   }
 
   return (
@@ -347,17 +363,75 @@ export function StoreForm({
       >
       <div className="space-y-4">
         <Field label="브랜드">
-          <select
-            value={brandId}
-            onChange={(e) => setBrandId(e.target.value)}
-            className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
-          >
-            {brands.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.name}
-              </option>
-            ))}
-          </select>
+          {addingBrand ? (
+            <div className="flex gap-2">
+              <input
+                value={newBrandName}
+                onChange={(e) => setNewBrandName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    handleAddBrand();
+                  }
+                }}
+                placeholder="새 브랜드명 (예: 아리따움)"
+                autoFocus
+                disabled={brandPending}
+                className="flex-1 rounded-md border border-neutral-300 px-3 py-2 text-sm"
+              />
+              <button
+                type="button"
+                onClick={handleAddBrand}
+                disabled={brandPending || !newBrandName.trim()}
+                className="shrink-0 rounded-md bg-neutral-900 px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
+              >
+                {brandPending ? "추가 중…" : "추가"}
+              </button>
+              {brands.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAddingBrand(false);
+                    setNewBrandName("");
+                    setBrandError(null);
+                  }}
+                  disabled={brandPending}
+                  className="shrink-0 rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-600 hover:bg-neutral-50 disabled:opacity-50"
+                >
+                  취소
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="flex gap-2">
+              <select
+                value={brandId}
+                onChange={(e) => setBrandId(e.target.value)}
+                className="flex-1 rounded-md border border-neutral-300 px-3 py-2 text-sm"
+              >
+                {brands.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={() => setAddingBrand(true)}
+                className="shrink-0 rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-700 hover:bg-neutral-50"
+              >
+                + 새 브랜드
+              </button>
+            </div>
+          )}
+          {brandError && (
+            <p className="mt-1 text-xs text-red-600">{brandError}</p>
+          )}
+          {brands.length > 0 && (
+            <div className="mt-2">
+              <BrandList brands={brands} />
+            </div>
+          )}
         </Field>
 
         <Field label="매장명">
