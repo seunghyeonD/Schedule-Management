@@ -72,6 +72,16 @@ export function StoreForm({ brands, regionGroups, orgId }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // 브랜드가 0개일 때 마운트되면 brandId가 ""로 잠겨버려서, 이후 브랜드 추가로
+  // brands prop이 채워져도 select가 빈 값을 유지해 버튼이 disabled로 남음.
+  // brands가 바뀌고 현재 brandId가 목록에 없으면 첫 브랜드로 보정.
+  useEffect(() => {
+    if (brands.length === 0) return;
+    if (!brands.some((b) => b.id === brandId)) {
+      setBrandId(brands[0].id);
+    }
+  }, [brands, brandId]);
+
   const regionGroupById = useMemo(
     () => new Map(regionGroups.map((g) => [g.id, g.name])),
     [regionGroups],
