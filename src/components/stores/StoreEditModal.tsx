@@ -236,29 +236,27 @@ export function StoreEditModal({
         </header>
 
         <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <Field label="브랜드">
-              <select
-                value={brandId}
-                onChange={(e) => setBrandId(e.target.value)}
-                className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
-              >
-                {brands.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.name}
-                  </option>
-                ))}
-              </select>
-            </Field>
+          <Field label="브랜드">
+            <select
+              value={brandId}
+              onChange={(e) => setBrandId(e.target.value)}
+              className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
+            >
+              {brands.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name}
+                </option>
+              ))}
+            </select>
+          </Field>
 
-            <Field label="매장명">
-              <input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
-              />
-            </Field>
-          </div>
+          <Field label="매장명">
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
+            />
+          </Field>
 
           <Field label="주소">
             <input
@@ -277,36 +275,34 @@ export function StoreEditModal({
             />
           </Field>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <Field label="시/도">
-              <input
-                value={sido}
-                onChange={(e) => setSido(e.target.value)}
-                className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
-              />
-            </Field>
-            <Field label="시/군/구">
-              <input
-                value={sigungu}
-                onChange={(e) => setSigungu(e.target.value)}
-                className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
-              />
-            </Field>
-            <Field label="지역 그룹">
-              <select
-                value={regionGroupId}
-                onChange={(e) => setRegionGroupId(e.target.value)}
-                className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
-              >
-                <option value="">- 선택 -</option>
-                {regionGroups.map((g) => (
-                  <option key={g.id} value={g.id}>
-                    {g.name}
-                  </option>
-                ))}
-              </select>
-            </Field>
-          </div>
+          <Field label="시/도">
+            <input
+              value={sido}
+              onChange={(e) => setSido(e.target.value)}
+              className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
+            />
+          </Field>
+          <Field label="시/군/구">
+            <input
+              value={sigungu}
+              onChange={(e) => setSigungu(e.target.value)}
+              className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
+            />
+          </Field>
+          <Field label="지역 그룹">
+            <select
+              value={regionGroupId}
+              onChange={(e) => setRegionGroupId(e.target.value)}
+              className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
+            >
+              <option value="">- 선택 -</option>
+              {regionGroups.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.name}
+                </option>
+              ))}
+            </select>
+          </Field>
 
           <Field label={`매장 사진 (${photoPaths.length}/${MAX_PHOTOS})`}>
             <div className="space-y-2">
