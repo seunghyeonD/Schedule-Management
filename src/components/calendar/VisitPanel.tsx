@@ -171,14 +171,14 @@ export function VisitPanel({
 
   if (!date) {
     return (
-      <aside className="flex items-center justify-center rounded-2xl border border-dashed border-neutral-300 bg-white p-10 text-center text-sm text-neutral-400 lg:h-full">
+      <aside className="-mx-4 -mb-4 flex items-center justify-center border-t border-neutral-200 bg-white p-10 text-center text-sm text-neutral-400 sm:mx-0 sm:mb-0 sm:rounded-2xl sm:border sm:border-dashed sm:border-neutral-300 lg:h-full">
         캘린더에서 날짜를 선택하세요
       </aside>
     );
   }
 
   return (
-    <aside className="rounded-2xl border border-neutral-200 bg-white lg:flex lg:h-full lg:flex-col">
+    <aside className="-mx-4 -mb-4 border-t border-neutral-200 bg-white sm:mx-0 sm:mb-0 sm:rounded-2xl sm:border sm:border-neutral-200 lg:flex lg:h-full lg:flex-col">
       <header className="flex items-start justify-between gap-3 border-b border-neutral-100 px-5 py-4 lg:shrink-0">
         <div className="min-w-0">
           <h2 className="text-base font-semibold text-neutral-900">
