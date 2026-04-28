@@ -269,11 +269,17 @@ export function CalendarPage({
                     <div className="mt-1.5 flex items-center gap-1 sm:hidden">
                       <div className="flex flex-wrap gap-1">
                         {dayVisits.slice(0, 4).map((v) => {
-                          const c = brandColor(v.store?.brand?.id);
+                          const c = brandColor(
+                            v.store?.brand?.id,
+                            v.store?.brand?.name,
+                          );
                           return (
                             <span
                               key={v.id}
-                              className={`block h-2 w-2 shrink-0 rounded-full ${c.dot}`}
+                              className={`block h-2 w-2 shrink-0 rounded-full ${c.hex ? "" : c.dot}`}
+                              style={
+                                c.hex ? { backgroundColor: c.hex } : undefined
+                              }
                               aria-hidden
                             />
                           );
@@ -291,7 +297,10 @@ export function CalendarPage({
                     {/* 데스크탑: 매장명까지 */}
                     <ul className="mt-1 hidden space-y-0.5 pl-3 sm:block">
                       {dayVisits.slice(0, 4).map((v) => {
-                        const c = brandColor(v.store?.brand?.id);
+                        const c = brandColor(
+                          v.store?.brand?.id,
+                          v.store?.brand?.name,
+                        );
                         const recorderLabel = v.recorder
                           ? v.recorder.display_name?.trim() ||
                             v.recorder.email
@@ -302,7 +311,12 @@ export function CalendarPage({
                             className="flex items-center gap-1.5 text-[11px] leading-tight text-neutral-700"
                           >
                             <span
-                              className={`h-1.5 w-1.5 shrink-0 rounded-full ${c.dot}`}
+                              className={`h-1.5 w-1.5 shrink-0 rounded-full ${c.hex ? "" : c.dot}`}
+                              style={
+                                c.hex
+                                  ? { backgroundColor: c.hex }
+                                  : undefined
+                              }
                               aria-hidden
                             />
                             <span className="shrink-0 text-[10px] tabular-nums text-neutral-400">
