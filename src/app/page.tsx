@@ -8,6 +8,7 @@ import {
 } from "@/lib/supabase/calendar-queries";
 import { getSyncStatus } from "@/app/actions/sheets";
 import { createClient } from "@/lib/supabase/server";
+import { getCurrentOrgId } from "@/lib/org/current";
 
 export const dynamic = "force-dynamic";
 
@@ -24,13 +25,15 @@ export default async function Home() {
   } = await supabase.auth.getUser();
   const currentUserId = user?.id ?? null;
 
-  const [brands, regionGroups, stores, visits, syncStatus] = await Promise.all([
-    getBrands(),
-    getRegionGroups(),
-    getStoresForPicker(),
-    getVisitsInRange(from, to),
-    getSyncStatus(),
-  ]);
+  const [brands, regionGroups, stores, visits, syncStatus, orgId] =
+    await Promise.all([
+      getBrands(),
+      getRegionGroups(),
+      getStoresForPicker(),
+      getVisitsInRange(from, to),
+      getSyncStatus(),
+      getCurrentOrgId(),
+    ]);
 
   return (
     <>
@@ -53,6 +56,7 @@ export default async function Home() {
             sheetsConnected={syncStatus.connected}
             initialLastSyncedAt={syncStatus.lastSyncedAt}
             currentUserId={currentUserId}
+            orgId={orgId}
           />
         </div>
       </main>
