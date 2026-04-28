@@ -199,12 +199,12 @@ export function VisitPanel({
             {visits.length === 0 && (
               <div
                 role="tooltip"
-                className="pointer-events-none absolute right-0 bottom-full z-10 mb-2 whitespace-nowrap rounded-md bg-neutral-900 px-2.5 py-1.5 text-[11px] font-medium text-white shadow-lg"
+                className="pointer-events-none absolute right-0 bottom-full z-10 mb-2 whitespace-nowrap rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[11px] font-medium text-amber-900 shadow-md"
               >
                 방문일정을 추가해주세요.
                 <span
                   aria-hidden
-                  className="absolute -bottom-1 right-4 h-2 w-2 rotate-45 bg-neutral-900"
+                  className="absolute -bottom-[5px] right-4 h-2 w-2 rotate-45 border-b border-r border-amber-200 bg-amber-50"
                 />
               </div>
             )}
@@ -213,7 +213,7 @@ export function VisitPanel({
             type="button"
             onClick={() => setIsOrderSummaryOpen(true)}
             disabled={visits.length === 0}
-            className="inline-flex items-center gap-1 rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 text-xs font-medium text-neutral-700 shadow-sm transition hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex items-center gap-1 rounded-md bg-neutral-900 px-2.5 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-50"
           >
             주문내역 모아보기
           </button>
@@ -438,7 +438,7 @@ export function VisitPanel({
                   <button
                     type="button"
                     onClick={() => setIsStoreFormOpen(false)}
-                    className="inline-flex items-center gap-1 rounded-md border border-neutral-200 bg-white px-2.5 py-1.5 text-xs font-medium text-neutral-700 transition hover:bg-neutral-50"
+                    className="inline-flex items-center gap-1 rounded-md bg-neutral-900 px-2.5 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-neutral-800"
                   >
                     ← 목록
                   </button>
