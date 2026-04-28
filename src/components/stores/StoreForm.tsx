@@ -524,7 +524,13 @@ export function StoreForm({
       </Field>
 
       {(sido || sigungu) && (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <div
+          className={
+            submitFullWidth
+              ? "space-y-4"
+              : "grid grid-cols-1 gap-4 md:grid-cols-3"
+          }
+        >
           <Field label="시/도">
             <input
               value={sido}
