@@ -2,7 +2,7 @@
 
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import type { Brand, RegionGroup } from "@/lib/types/db";
 import type {
   StorePicker,
@@ -48,6 +48,11 @@ export function VisitPanel({
   const [sigungu, setSigungu] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [memoVisit, setMemoVisit] = useState<VisitCell | null>(null);
+  const addSectionRef = useRef<HTMLElement | null>(null);
+
+  const handleAddClick = () => {
+    addSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
 
   // 매장 목록에 실제로 등록된 브랜드만 — 매장 0개인 브랜드는 단계에서 숨김
   const availableBrands = useMemo(() => {
@@ -167,15 +172,39 @@ export function VisitPanel({
   const selectedRegion = regionGroups.find((g) => g.id === regionGroupId);
 
   return (
-    <aside className="rounded-2xl border border-neutral-200 bg-white lg:flex lg:h-full lg:flex-col lg:overflow-hidden">
-      <header className="border-b border-neutral-100 px-5 py-4 lg:shrink-0">
-        <h2 className="text-base font-semibold text-neutral-900">
-          {format(date, "yyyy년 M월 d일 (E)", { locale: ko })}
-        </h2>
-        <p className="mt-0.5 text-xs text-neutral-500">방문 {visits.length}건</p>
+    <aside className="rounded-2xl border border-neutral-200 bg-white lg:flex lg:h-full lg:flex-col">
+      <header className="flex items-start justify-between gap-3 border-b border-neutral-100 px-5 py-4 lg:shrink-0">
+        <div className="min-w-0">
+          <h2 className="text-base font-semibold text-neutral-900">
+            {format(date, "yyyy년 M월 d일 (E)", { locale: ko })}
+          </h2>
+          <p className="mt-0.5 text-xs text-neutral-500">방문 {visits.length}건</p>
+        </div>
+        <div className="relative shrink-0">
+          <button
+            type="button"
+            onClick={handleAddClick}
+            className="inline-flex items-center gap-1 rounded-md bg-blue-600 px-2.5 py-1.5 text-xs font-medium text-white shadow-sm transition hover:bg-blue-700"
+          >
+            <span aria-hidden>+</span>
+            <span>일정추가</span>
+          </button>
+          {visits.length === 0 && (
+            <div
+              role="tooltip"
+              className="pointer-events-none absolute right-0 bottom-full z-10 mb-2 whitespace-nowrap rounded-md bg-neutral-900 px-2.5 py-1.5 text-[11px] font-medium text-white shadow-lg"
+            >
+              방문일정을 추가해주세요.
+              <span
+                aria-hidden
+                className="absolute -bottom-1 right-4 h-2 w-2 rotate-45 bg-neutral-900"
+              />
+            </div>
+          )}
+        </div>
       </header>
 
-      <div className="lg:flex-1 lg:min-h-0 lg:overflow-y-auto">
+      <div className="lg:flex-1 lg:min-h-0 lg:overflow-y-auto lg:rounded-b-2xl">
       <section className="px-5 py-4">
         {visits.length === 0 ? (
           <p className="py-4 text-center text-xs text-neutral-400">
@@ -261,7 +290,10 @@ export function VisitPanel({
         )}
       </section>
 
-      <section className="border-t border-neutral-100 bg-neutral-50/50 px-5 py-4">
+      <section
+        ref={addSectionRef}
+        className="border-t border-neutral-100 bg-neutral-50/50 px-5 py-4"
+      >
         <div className="mb-3 flex items-center justify-between">
           <h3 className="text-sm font-semibold text-neutral-800">방문 추가</h3>
           {step !== "brand" && (
