@@ -77,6 +77,8 @@ function calendarTabName(year: number, month: number): string {
   return `${year}년 ${month}월`;
 }
 
+const CALENDAR_TAB_RE = /^\d+년 \d+월$/;
+
 const CALENDAR_WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
 
 type RGB = { red: number; green: number; blue: number };
@@ -386,10 +388,28 @@ async function syncSpreadsheetTabs(
     meta.sheets.map((s) => [s.properties.title, s.properties.sheetId]),
   );
 
+  // 새 로그 탭은 월별 캘린더 탭(예: "2026년 1월") 바로 앞에 끼워 넣기.
+  // 캘린더 탭이 아직 하나도 없으면 그냥 끝에 추가 (이후 동기화 시 재정렬됨).
+  let nextInsertIndex: number | undefined;
+  for (let i = 0; i < meta.sheets.length; i++) {
+    if (CALENDAR_TAB_RE.test(meta.sheets[i].properties.title)) {
+      nextInsertIndex = i;
+      break;
+    }
+  }
+
   const requests: unknown[] = [];
   for (const name of tabNames) {
     if (!existing.has(name)) {
-      requests.push({ addSheet: { properties: { title: name } } });
+      const isCalendarTab = CALENDAR_TAB_RE.test(name);
+      if (!isCalendarTab && nextInsertIndex !== undefined) {
+        requests.push({
+          addSheet: { properties: { title: name, index: nextInsertIndex } },
+        });
+        nextInsertIndex += 1;
+      } else {
+        requests.push({ addSheet: { properties: { title: name } } });
+      }
     }
   }
 
