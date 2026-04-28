@@ -8,7 +8,7 @@ import type {
   StorePicker,
   VisitCell,
 } from "@/lib/supabase/calendar-queries";
-import { brandColor } from "@/lib/brandColor";
+import { brandColor, brandTagProps } from "@/lib/brandColor";
 import { VisitMemoModal } from "./VisitMemoModal";
 import { VisitOrderModal } from "./VisitOrderModal";
 import { VisitOrderSummaryModal } from "./VisitOrderSummaryModal";
@@ -251,7 +251,8 @@ export function VisitPanel({
         ) : (
           <ul className="space-y-2">
             {visits.map((v) => {
-              const c = brandColor(v.store?.brand?.id);
+              const c = brandColor(v.store?.brand?.id, v.store?.brand?.name);
+              const tag = brandTagProps(c);
               const recorderLabel = v.recorder
                 ? v.recorder.display_name?.trim() || v.recorder.email
                 : null;
@@ -265,23 +266,23 @@ export function VisitPanel({
                     <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-sm font-semibold tabular-nums text-neutral-700">
                       {v.visit_order}
                     </span>
-                    <span
-                      aria-hidden
-                      className={`h-3 w-3 shrink-0 rounded-full ${c.dot}`}
-                    />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-base font-semibold text-neutral-900">
-                        {v.store?.name ?? "-"}
-                      </p>
-                      <p className="mt-0.5 truncate text-xs text-neutral-500">
-                        {v.store?.brand?.name ?? "-"}
-                        {recorderLabel && (
-                          <>
-                            <span className="mx-1">·</span>
-                            {recorderLabel}
-                          </>
-                        )}
-                      </p>
+                    <p className="min-w-0 flex-1 truncate text-base font-semibold text-neutral-900">
+                      {v.store?.name ?? "-"}
+                    </p>
+                    <div className="flex shrink-0 items-center gap-2 text-xs">
+                      {recorderLabel && (
+                        <span className="truncate text-neutral-500">
+                          {recorderLabel}
+                        </span>
+                      )}
+                      {v.store?.brand?.name && (
+                        <span
+                          className={`inline-flex items-center rounded-full px-2 py-0.5 font-medium ${tag.className}`}
+                          style={tag.style}
+                        >
+                          {v.store.brand.name}
+                        </span>
+                      )}
                     </div>
                     <span
                       aria-hidden
@@ -497,7 +498,8 @@ export function VisitPanel({
                           const brand = brands.find(
                             (b) => b.id === s.brand_id,
                           );
-                          const c = brandColor(s.brand_id);
+                          const c = brandColor(s.brand_id, brand?.name);
+                          const tag = brandTagProps(c);
                           return (
                             <li key={s.id}>
                               <label
@@ -516,15 +518,14 @@ export function VisitPanel({
                                   onChange={() => toggleStoreSelected(s.id)}
                                   className="h-5 w-5 shrink-0 rounded border-neutral-300 text-point focus:ring-point"
                                 />
-                                <span
-                                  aria-hidden
-                                  className={`h-2.5 w-2.5 shrink-0 rounded-full ${c.dot}`}
-                                />
                                 <span className="min-w-0 flex-1 truncate text-sm font-medium text-neutral-900">
                                   {s.name}
                                 </span>
                                 {brand?.name && (
-                                  <span className="shrink-0 text-xs text-neutral-500">
+                                  <span
+                                    className={`inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-medium ${tag.className}`}
+                                    style={tag.style}
+                                  >
                                     {brand.name}
                                   </span>
                                 )}
