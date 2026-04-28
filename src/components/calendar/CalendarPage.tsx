@@ -271,6 +271,10 @@ export function CalendarPage({
                     <ul className="mt-1 hidden space-y-0.5 pl-3 sm:block">
                       {dayVisits.slice(0, 4).map((v) => {
                         const c = brandColor(v.store?.brand?.id);
+                        const recorderLabel = v.recorder
+                          ? v.recorder.display_name?.trim() ||
+                            v.recorder.email
+                          : null;
                         return (
                           <li
                             key={v.id}
@@ -283,8 +287,14 @@ export function CalendarPage({
                             <span className="shrink-0 text-[10px] tabular-nums text-neutral-400">
                               {v.visit_order}
                             </span>
-                            <span className="truncate">
+                            <span className="min-w-0 flex-1 truncate">
                               {v.store?.name ?? "-"}
+                              {recorderLabel && (
+                                <span className="text-neutral-400">
+                                  {" · "}
+                                  {recorderLabel}
+                                </span>
+                              )}
                             </span>
                           </li>
                         );
