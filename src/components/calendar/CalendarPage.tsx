@@ -32,6 +32,7 @@ type Props = {
   sheetsConnected: boolean;
   initialLastSyncedAt: string | null;
   currentUserId: string | null;
+  orgId: string | null;
 };
 
 type OptimisticAction =
@@ -48,6 +49,7 @@ export function CalendarPage({
   sheetsConnected,
   initialLastSyncedAt,
   currentUserId,
+  orgId,
 }: Props) {
   const [month, setMonth] = useState<Date>(new Date());
   const [selected, setSelected] = useState<Date | null>(() => new Date());
@@ -156,6 +158,7 @@ export function CalendarPage({
         regionGroups={regionGroups}
         stores={stores}
         currentUserId={currentUserId}
+        orgId={orgId}
         onAddVisit={handleAddVisit}
         onDeleteVisit={handleDeleteVisit}
         onChange={markDirty}
