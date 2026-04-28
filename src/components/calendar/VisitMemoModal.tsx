@@ -282,7 +282,8 @@ export function VisitMemoModal({
               value={storePosition}
               onChange={(e) => setStorePosition(e.target.value)}
               placeholder="예: 유동인구 증가, 경쟁사 신규 입점"
-              className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
+              readOnly={readOnly}
+              className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm read-only:bg-neutral-50 read-only:text-neutral-700"
             />
           </Field>
 
@@ -292,7 +293,8 @@ export function VisitMemoModal({
                 value={customerCount}
                 onChange={(e) => setCustomerCount(e.target.value)}
                 placeholder="예: 가족 단위 증가, 평일 한산"
-                className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
+                readOnly={readOnly}
+                className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm read-only:bg-neutral-50 read-only:text-neutral-700"
               />
             </Field>
             <Field label="진열 위치 및 동향">
@@ -300,7 +302,8 @@ export function VisitMemoModal({
                 value={displayType}
                 onChange={(e) => setDisplayType(e.target.value)}
                 placeholder="예: 1층 정문 우측 엔드 2단"
-                className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
+                readOnly={readOnly}
+                className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm read-only:bg-neutral-50 read-only:text-neutral-700"
               />
             </Field>
           </div>
@@ -310,7 +313,8 @@ export function VisitMemoModal({
               value={salesTrend}
               onChange={(e) => setSalesTrend(e.target.value)}
               placeholder="예: 전월 대비 상승"
-              className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
+              readOnly={readOnly}
+              className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm read-only:bg-neutral-50 read-only:text-neutral-700"
             />
           </Field>
 
@@ -320,7 +324,8 @@ export function VisitMemoModal({
               onChange={(e) => setActivity(e.target.value)}
               rows={4}
               placeholder="오늘의 활동을 자유롭게 기록하세요"
-              className="w-full resize-y rounded-md border border-neutral-300 px-3 py-2 text-sm"
+              readOnly={readOnly}
+              className="w-full resize-y rounded-md border border-neutral-300 px-3 py-2 text-sm read-only:bg-neutral-50 read-only:text-neutral-700"
             />
           </Field>
 
@@ -330,7 +335,8 @@ export function VisitMemoModal({
               onChange={(e) => setRequests(e.target.value)}
               rows={3}
               placeholder="점주/매니저로부터 받은 요청을 기록하세요"
-              className="w-full resize-y rounded-md border border-neutral-300 px-3 py-2 text-sm"
+              readOnly={readOnly}
+              className="w-full resize-y rounded-md border border-neutral-300 px-3 py-2 text-sm read-only:bg-neutral-50 read-only:text-neutral-700"
             />
           </Field>
 
@@ -352,33 +358,37 @@ export function VisitMemoModal({
                           로드 중…
                         </div>
                       )}
-                      <button
-                        type="button"
-                        onClick={() => handleRemovePhoto(path)}
-                        className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-[10px] text-white opacity-0 transition group-hover:opacity-100"
-                        aria-label="사진 삭제"
-                      >
-                        ✕
-                      </button>
+                      {!readOnly && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemovePhoto(path)}
+                          className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-[10px] text-white opacity-0 transition group-hover:opacity-100"
+                          aria-label="사진 삭제"
+                        >
+                          ✕
+                        </button>
+                      )}
                     </li>
                   ))}
                 </ul>
               )}
-              <label className="flex cursor-pointer items-center justify-center rounded-md border border-dashed border-neutral-300 bg-neutral-50 px-3 py-3 text-xs text-neutral-600 hover:border-neutral-400 hover:bg-neutral-100">
-                <input
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  onChange={handleUpload}
-                  disabled={uploading || photoPaths.length >= 10}
-                  className="hidden"
-                />
-                {uploading
-                  ? "업로드 중…"
-                  : photoPaths.length >= 10
-                    ? "최대 10장까지 첨부 가능"
-                    : "＋ 사진 추가"}
-              </label>
+              {!readOnly && (
+                <label className="flex cursor-pointer items-center justify-center rounded-md border border-dashed border-neutral-300 bg-neutral-50 px-3 py-3 text-xs text-neutral-600 hover:border-neutral-400 hover:bg-neutral-100">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={handleUpload}
+                    disabled={uploading || photoPaths.length >= 10}
+                    className="hidden"
+                  />
+                  {uploading
+                    ? "업로드 중…"
+                    : photoPaths.length >= 10
+                      ? "최대 10장까지 첨부 가능"
+                      : "＋ 사진 추가"}
+                </label>
+              )}
             </div>
           </Field>
 
@@ -395,16 +405,18 @@ export function VisitMemoModal({
             onClick={handleClose}
             className="rounded-md border border-neutral-300 bg-white px-4 py-1.5 text-sm text-neutral-700 hover:bg-neutral-50"
           >
-            취소
+            {readOnly ? "닫기" : "취소"}
           </button>
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={isPending || uploading || loading}
-            className="rounded-md bg-neutral-900 px-4 py-1.5 text-sm font-medium text-white disabled:opacity-50"
-          >
-            {isPending ? "저장 중…" : "저장"}
-          </button>
+          {!readOnly && (
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={isPending || uploading || loading}
+              className="rounded-md bg-neutral-900 px-4 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+            >
+              {isPending ? "저장 중…" : "저장"}
+            </button>
+          )}
         </footer>
       </div>
     </div>
