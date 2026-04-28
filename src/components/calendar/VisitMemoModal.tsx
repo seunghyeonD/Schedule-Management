@@ -13,11 +13,22 @@ import {
 
 type Props = {
   visit: VisitCell;
+  currentUserId: string | null;
   onClose: () => void;
   onSaved?: () => void;
 };
 
-export function VisitMemoModal({ visit, onClose, onSaved }: Props) {
+export function VisitMemoModal({
+  visit,
+  currentUserId,
+  onClose,
+  onSaved,
+}: Props) {
+  // 본인이 작성한 visit이 아닐 때 (마스터가 다른 멤버의 visit 열람) 읽기 전용 모드.
+  const readOnly = !currentUserId || visit.user_id !== currentUserId;
+  const recorderLabel = visit.recorder
+    ? visit.recorder.display_name?.trim() || visit.recorder.email
+    : null;
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -235,11 +246,19 @@ export function VisitMemoModal({ visit, onClose, onSaved }: Props) {
           <div className="min-w-0">
             <h3 className="truncate text-sm font-semibold text-neutral-900">
               {visit.store?.name ?? "방문"} 메모
+              {readOnly && (
+                <span className="ml-2 rounded-full bg-neutral-100 px-1.5 py-0.5 text-[10px] font-medium text-neutral-600">
+                  읽기 전용
+                </span>
+              )}
             </h3>
             <p className="text-xs text-neutral-500">
               {format(parseISO(visit.visit_date), "yyyy년 M월 d일 (E)", {
                 locale: ko,
               })}
+              {recorderLabel && (
+                <span className="ml-1 text-neutral-400">· {recorderLabel}</span>
+              )}
             </p>
           </div>
           <button
