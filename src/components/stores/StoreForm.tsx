@@ -345,13 +345,7 @@ export function StoreForm({
             : "contents"
         }
       >
-      <div
-        className={
-          submitFullWidth
-            ? "space-y-4"
-            : "grid grid-cols-1 gap-4 md:grid-cols-2"
-        }
-      >
+      <div className="space-y-4">
         <Field label="브랜드">
           <select
             value={brandId}
@@ -524,13 +518,7 @@ export function StoreForm({
       </Field>
 
       {(sido || sigungu) && (
-        <div
-          className={
-            submitFullWidth
-              ? "space-y-4"
-              : "grid grid-cols-1 gap-4 md:grid-cols-3"
-          }
-        >
+        <div className="space-y-4">
           <Field label="시/도">
             <input
               value={sido}
