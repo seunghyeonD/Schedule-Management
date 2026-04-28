@@ -35,15 +35,33 @@ type PostcodeData = {
 
 type SearchMode = "keyword" | "address";
 
+type CreatedStore = {
+  id: string;
+  name: string;
+  brand_id: string;
+  region_group_id: string | null;
+  sigungu: string | null;
+};
+
 type Props = {
   brands: Brand[];
   regionGroups: RegionGroup[];
   orgId: string | null;
+  submitLabel?: string;
+  submitFullWidth?: boolean;
+  onCreated?: (store: CreatedStore) => void;
 };
 
 type SelectedPhoto = { file: File; previewUrl: string };
 
-export function StoreForm({ brands, regionGroups, orgId }: Props) {
+export function StoreForm({
+  brands,
+  regionGroups,
+  orgId,
+  submitLabel = "매장 추가",
+  submitFullWidth = false,
+  onCreated,
+}: Props) {
   const [isPending, startTransition] = useTransition();
   const [openPostcode, setOpenPostcode] = useState(false);
   const [searchMode, setSearchMode] = useState<SearchMode>("keyword");
@@ -296,6 +314,7 @@ export function StoreForm({ brands, regionGroups, orgId }: Props) {
           return;
         }
         reset();
+        if (res?.store) onCreated?.(res.store);
       } catch (err) {
         setError((err as Error).message);
       }
@@ -311,7 +330,21 @@ export function StoreForm({ brands, regionGroups, orgId }: Props) {
   }
 
   return (
-    <form onSubmit={onSubmit} className="space-y-4">
+    <form
+      onSubmit={onSubmit}
+      className={
+        submitFullWidth
+          ? "flex h-full min-h-0 flex-col"
+          : "space-y-4"
+      }
+    >
+      <div
+        className={
+          submitFullWidth
+            ? "flex-1 space-y-4 overflow-y-auto overflow-x-hidden px-5 py-4"
+            : "contents"
+        }
+      >
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <Field label="브랜드">
           <select
@@ -566,17 +599,33 @@ export function StoreForm({ brands, regionGroups, orgId }: Props) {
           </label>
         </div>
       </Field>
-
-      <div className="flex items-center justify-between">
-        {error && <p className="text-xs text-red-600">{error}</p>}
-        <button
-          type="submit"
-          disabled={isPending || !name || !address || !brandId}
-          className="ml-auto rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-        >
-          {isPending ? "저장 중…" : "매장 추가"}
-        </button>
       </div>
+
+      {submitFullWidth ? (
+        <div className="shrink-0 border-t border-neutral-100 bg-white px-5 py-3">
+          {error && (
+            <p className="mb-2 text-center text-xs text-red-600">{error}</p>
+          )}
+          <button
+            type="submit"
+            disabled={isPending || !name || !address || !brandId}
+            className="w-full rounded-lg bg-point px-4 py-3 text-base font-semibold text-neutral-900 shadow-sm transition hover:bg-point-hover disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {isPending ? "저장 중…" : submitLabel}
+          </button>
+        </div>
+      ) : (
+        <div className="flex items-center justify-between">
+          {error && <p className="text-xs text-red-600">{error}</p>}
+          <button
+            type="submit"
+            disabled={isPending || !name || !address || !brandId}
+            className="ml-auto rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+          >
+            {isPending ? "저장 중…" : submitLabel}
+          </button>
+        </div>
+      )}
     </form>
   );
 }
