@@ -49,7 +49,7 @@ type Props = {
   orgId: string | null;
   submitLabel?: string;
   submitFullWidth?: boolean;
-  onCreated?: (store: CreatedStore) => void;
+  onCreated?: (store: CreatedStore) => void | Promise<void>;
 };
 
 type SelectedPhoto = { file: File; previewUrl: string };
@@ -314,7 +314,7 @@ export function StoreForm({
           return;
         }
         reset();
-        if (res?.store) onCreated?.(res.store);
+        if (res?.store) await onCreated?.(res.store);
       } catch (err) {
         setError((err as Error).message);
       }
@@ -345,12 +345,18 @@ export function StoreForm({
             : "contents"
         }
       >
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+      <div
+        className={
+          submitFullWidth
+            ? "space-y-4"
+            : "grid grid-cols-1 gap-4 md:grid-cols-2"
+        }
+      >
         <Field label="브랜드">
           <select
             value={brandId}
             onChange={(e) => setBrandId(e.target.value)}
-            className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
+            className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
           >
             {brands.map((b) => (
               <option key={b.id} value={b.id}>
@@ -365,7 +371,7 @@ export function StoreForm({
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="예: NC강남점"
-            className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
+            className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
           />
         </Field>
       </div>
