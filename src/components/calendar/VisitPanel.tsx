@@ -53,10 +53,24 @@ export function VisitPanel({
   const [memoVisit, setMemoVisit] = useState<VisitCell | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isStoreFormOpen, setIsStoreFormOpen] = useState(false);
+  const [selectedStoreIds, setSelectedStoreIds] = useState<Set<string>>(
+    new Set(),
+  );
 
   const handleAddClick = () => {
     setIsAddModalOpen(true);
     setIsStoreFormOpen(false);
+    setSelectedStoreIds(new Set());
+    setError(null);
+  };
+
+  const toggleStoreSelected = (id: string) => {
+    setSelectedStoreIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   };
 
   useEffect(() => {
@@ -171,6 +185,38 @@ export function VisitPanel({
     startTransition(async () => {
       const res = await onDeleteVisit(visitId);
       if (!res?.error) onChange?.();
+    });
+  }
+
+  function handleConfirmAddVisits() {
+    if (!date || selectedStoreIds.size === 0) return;
+    const selected = stores.filter((s) => selectedStoreIds.has(s.id));
+    setError(null);
+    startTransition(async () => {
+      let firstError: string | null = null;
+      for (const s of selected) {
+        const brand = brands.find((b) => b.id === s.brand_id);
+        const regionGroup = regionGroups.find(
+          (g) => g.id === s.region_group_id,
+        );
+        const res = await onAddVisit(
+          s,
+          s.name,
+          brand?.name ?? "",
+          regionGroup?.name ?? null,
+        );
+        if (res?.error) {
+          firstError = res.error;
+          break;
+        }
+      }
+      if (firstError) {
+        setError(firstError);
+      } else {
+        setSelectedStoreIds(new Set());
+        setIsAddModalOpen(false);
+        onChange?.();
+      }
     });
   }
 
@@ -309,7 +355,7 @@ export function VisitPanel({
           onClick={() => setIsAddModalOpen(false)}
         >
           <div
-            className="flex h-[85vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+            className="flex h-[85vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <header className="flex shrink-0 items-start justify-between gap-3 border-b border-neutral-100 px-5 py-4">
@@ -365,9 +411,9 @@ export function VisitPanel({
                 />
               </div>
             ) : (
-              <div className="flex-1 overflow-x-hidden overflow-y-auto">
+              <div className="flex flex-1 min-h-0 flex-col">
                 {stores.length === 0 ? (
-                  <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
+                  <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
                     <p className="text-2xl font-bold text-neutral-800">
                       추가된 매장이 없습니다
                     </p>
@@ -376,21 +422,76 @@ export function VisitPanel({
                     </p>
                   </div>
                 ) : (
-                  <ul className="space-y-1 px-5 py-4">
-                    {stores.map((s) => (
-                      <li
-                        key={s.id}
-                        className="flex items-center gap-2 rounded-md px-2 py-1.5"
+                  <>
+                    <div className="flex-1 overflow-y-auto px-5 py-4">
+                      <ul className="space-y-2">
+                        {stores.map((s) => {
+                          const checked = selectedStoreIds.has(s.id);
+                          const alreadyAdded = existingStoreIds.has(s.id);
+                          const brand = brands.find(
+                            (b) => b.id === s.brand_id,
+                          );
+                          const c = brandColor(s.brand_id);
+                          return (
+                            <li key={s.id}>
+                              <label
+                                className={`flex items-center gap-3 rounded-lg border px-4 py-3 transition ${
+                                  alreadyAdded
+                                    ? "cursor-not-allowed border-neutral-200 bg-neutral-50 opacity-60"
+                                    : checked
+                                      ? "cursor-pointer border-point bg-blue-50"
+                                      : "cursor-pointer border-neutral-200 hover:border-neutral-400 hover:bg-neutral-50"
+                                }`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  disabled={alreadyAdded}
+                                  checked={checked}
+                                  onChange={() => toggleStoreSelected(s.id)}
+                                  className="h-5 w-5 shrink-0 rounded border-neutral-300 text-point focus:ring-point"
+                                />
+                                <span
+                                  aria-hidden
+                                  className={`h-2.5 w-2.5 shrink-0 rounded-full ${c.dot}`}
+                                />
+                                <span className="min-w-0 flex-1 truncate text-sm font-medium text-neutral-900">
+                                  {s.name}
+                                </span>
+                                {brand?.name && (
+                                  <span className="shrink-0 text-xs text-neutral-500">
+                                    {brand.name}
+                                  </span>
+                                )}
+                                {alreadyAdded && (
+                                  <span className="shrink-0 rounded bg-neutral-200 px-1.5 py-0.5 text-[10px] font-medium text-neutral-600">
+                                    등록됨
+                                  </span>
+                                )}
+                              </label>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </div>
+                    <div className="shrink-0 border-t border-neutral-100 bg-white px-5 py-3">
+                      {error && (
+                        <p className="mb-2 text-sm text-red-600">{error}</p>
+                      )}
+                      <button
+                        type="button"
+                        disabled={
+                          selectedStoreIds.size === 0 || isPending
+                        }
+                        onClick={handleConfirmAddVisits}
+                        className="w-full rounded-lg bg-point px-4 py-3 text-base font-semibold text-neutral-900 shadow-sm transition hover:bg-point-hover disabled:cursor-not-allowed disabled:opacity-50"
                       >
-                        <span aria-hidden className="text-neutral-400">
-                          ⋅
-                        </span>
-                        <span className="truncate text-sm text-neutral-800">
-                          {s.name}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
+                        완료
+                        {selectedStoreIds.size > 0
+                          ? ` (${selectedStoreIds.size})`
+                          : ""}
+                      </button>
+                    </div>
+                  </>
                 )}
               </div>
             )}
