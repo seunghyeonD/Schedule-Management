@@ -191,7 +191,7 @@ export function VisitPanel({
             <button
               type="button"
               onClick={handleAddClick}
-              className="inline-flex items-center gap-1 rounded-md bg-neutral-900 px-2.5 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-neutral-800"
+              className="inline-flex items-center gap-1.5 rounded-md bg-neutral-900 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-neutral-800"
             >
               <span aria-hidden>+</span>
               <span>일정추가</span>
@@ -213,7 +213,7 @@ export function VisitPanel({
             type="button"
             onClick={() => setIsOrderSummaryOpen(true)}
             disabled={visits.length === 0}
-            className="inline-flex items-center gap-1 rounded-md bg-neutral-900 px-2.5 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 rounded-md bg-neutral-900 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-50"
           >
             주문내역 모아보기
           </button>
