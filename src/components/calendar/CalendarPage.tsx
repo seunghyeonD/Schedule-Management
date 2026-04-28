@@ -240,7 +240,10 @@ export function CalendarPage({
             return (
               <button
                 key={key}
-                onClick={() => setSelected(day)}
+                onClick={() => {
+                  setSelected(day);
+                  if (!inMonth) setMonth(day);
+                }}
                 className={`group relative min-h-[72px] border-b border-r border-neutral-100 p-1.5 text-left transition sm:min-h-[120px] sm:p-2.5 lg:min-h-0 ${
                   isSelected
                     ? "bg-blue-50 ring-2 ring-inset ring-blue-400"
