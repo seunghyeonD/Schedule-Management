@@ -66,7 +66,7 @@ export async function getVisitsInRange(
   const baseRows = (data ?? []) as unknown as Omit<VisitCell, "recorder">[];
 
   // 마스터 뷰면 등록자 profile (display_name/email) join — 다른 멤버의 visits에 라벨 달기용.
-  let recorderById = new Map<
+  const recorderById = new Map<
     string,
     { display_name: string | null; email: string }
   >();
