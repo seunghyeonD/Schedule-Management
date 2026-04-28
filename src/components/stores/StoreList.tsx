@@ -6,6 +6,7 @@ import type { Brand, RegionGroup } from "@/lib/types/db";
 import type { StoreWithRelations } from "@/lib/supabase/queries";
 import { StoreEditModal } from "./StoreEditModal";
 import { StoreForm } from "./StoreForm";
+import { brandColor, brandTagProps } from "@/lib/brandColor";
 
 type Props = {
   stores: StoreWithRelations[];
@@ -140,29 +141,38 @@ export function StoreList({ stores, brands, regionGroups, orgId }: Props) {
             </p>
           ) : (
             <ul className="space-y-2">
-              {filtered.map((s) => (
+              {filtered.map((s) => {
+                const c = brandColor(s.brand?.id, s.brand?.name);
+                const tag = brandTagProps(c);
+                return (
                 <li
                   key={s.id}
                   className="flex items-center gap-3 rounded-lg border border-neutral-200 bg-white px-4 py-3 transition hover:border-neutral-400"
                 >
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-base font-semibold text-neutral-900">
-                      {s.name}
-                    </p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {s.brand?.name && (
+                        <span
+                          className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${tag.className}`}
+                          style={tag.style}
+                        >
+                          {s.brand.name}
+                        </span>
+                      )}
+                      <p className="min-w-0 truncate text-base font-semibold text-neutral-900">
+                        {s.name}
+                      </p>
+                    </div>
                     <p className="mt-0.5 truncate text-xs text-neutral-500">
-                      {s.brand?.name ?? "-"}
-                      {s.region_group && (
-                        <>
-                          <span className="mx-1">·</span>
-                          {s.region_group.name}
-                        </>
+                      {s.region_group && <span>{s.region_group.name}</span>}
+                      {s.region_group && s.address && (
+                        <span className="mx-1">·</span>
                       )}
                       {s.address && (
-                        <>
-                          <span className="mx-1">·</span>
+                        <span>
                           {s.address}
                           {s.address_detail ? ` ${s.address_detail}` : ""}
-                        </>
+                        </span>
                       )}
                     </p>
                   </div>
@@ -182,7 +192,8 @@ export function StoreList({ stores, brands, regionGroups, orgId }: Props) {
                     </button>
                   </div>
                 </li>
-              ))}
+                );
+              })}
             </ul>
           )}
         </div>
