@@ -16,6 +16,8 @@ export type VisitCell = {
   store: {
     id: string;
     name: string;
+    address: string | null;
+    address_detail: string | null;
     deleted_at: string | null;
     brand: { id: string; name: string } | null;
     region_group: { id: string; name: string } | null;
@@ -47,7 +49,7 @@ export async function getVisitsInRange(
       `id, user_id, visit_date, visit_order,
        store_position, customer_count, sales_trend, activity, display_type, requests, photo_paths,
        store:stores(
-         id, name, deleted_at,
+         id, name, address, address_detail, deleted_at,
          brand:brands(id, name),
          region_group:region_groups(id, name)
        )`,
