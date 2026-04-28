@@ -22,7 +22,7 @@ import type {
 import { addVisit, deleteVisit } from "@/app/actions/visits";
 import { VisitPanel } from "./VisitPanel";
 import { SyncButton } from "./SyncButton";
-import { brandColor } from "@/lib/brandColor";
+import { brandColor, brandTagProps } from "@/lib/brandColor";
 
 type Props = {
   brands: Brand[];
@@ -153,20 +153,22 @@ export function CalendarPage({
 
   return (
     <div className="grid grid-cols-1 gap-6 lg:h-full lg:grid-cols-[460px_1fr]">
-      <VisitPanel
-        date={selected}
-        visits={selectedVisits}
-        brands={brands}
-        regionGroups={regionGroups}
-        stores={stores}
-        currentUserId={currentUserId}
-        orgId={orgId}
-        onAddVisit={handleAddVisit}
-        onDeleteVisit={handleDeleteVisit}
-        onChange={markDirty}
-      />
+      <div className="order-2 lg:order-none lg:contents">
+        <VisitPanel
+          date={selected}
+          visits={selectedVisits}
+          brands={brands}
+          regionGroups={regionGroups}
+          stores={stores}
+          currentUserId={currentUserId}
+          orgId={orgId}
+          onAddVisit={handleAddVisit}
+          onDeleteVisit={handleDeleteVisit}
+          onChange={markDirty}
+        />
+      </div>
 
-      <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white lg:flex lg:h-full lg:flex-col lg:min-h-0">
+      <div className="order-1 overflow-hidden rounded-2xl border border-neutral-200 bg-white lg:order-none lg:flex lg:h-full lg:flex-col lg:min-h-0">
         <div className="flex items-center justify-between gap-2 border-b border-neutral-100 px-3 py-2.5 sm:px-4 sm:py-3">
           <div className="flex items-center gap-1 sm:gap-2">
             <button
@@ -294,43 +296,25 @@ export function CalendarPage({
                         {dayVisits.length}
                       </span>
                     </div>
-                    {/* 데스크탑: 매장명까지 */}
-                    <ul className="mt-1 hidden space-y-0.5 pl-3 sm:block">
+                    {/* 데스크탑: 매장명까지 — Google Calendar 스타일 컬러 칩 */}
+                    <ul className="mt-1 hidden space-y-0.5 sm:block">
                       {dayVisits.slice(0, 4).map((v) => {
                         const c = brandColor(
                           v.store?.brand?.id,
                           v.store?.brand?.name,
                         );
-                        const recorderLabel = v.recorder
-                          ? v.recorder.display_name?.trim() ||
-                            v.recorder.email
-                          : null;
+                        const tag = brandTagProps(c);
                         return (
                           <li
                             key={v.id}
-                            className="flex items-center gap-1.5 text-[11px] leading-tight text-neutral-700"
+                            className={`truncate rounded px-1.5 py-0.5 text-[11px] font-medium leading-tight ${tag.className}`}
+                            style={tag.style}
+                            title={v.store?.name ?? ""}
                           >
-                            <span
-                              className={`h-1.5 w-1.5 shrink-0 rounded-full ${c.hex ? "" : c.dot}`}
-                              style={
-                                c.hex
-                                  ? { backgroundColor: c.hex }
-                                  : undefined
-                              }
-                              aria-hidden
-                            />
-                            <span className="shrink-0 text-[10px] tabular-nums text-neutral-400">
+                            <span className="mr-1 tabular-nums opacity-70">
                               {v.visit_order}
                             </span>
-                            <span className="min-w-0 flex-1 truncate">
-                              {v.store?.name ?? "-"}
-                              {recorderLabel && (
-                                <span className="text-neutral-400">
-                                  {" · "}
-                                  {recorderLabel}
-                                </span>
-                              )}
-                            </span>
+                            {v.store?.name ?? "-"}
                           </li>
                         );
                       })}
