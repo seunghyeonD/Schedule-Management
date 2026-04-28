@@ -1,7 +1,6 @@
 import AppHeader from "@/components/AppHeader";
 import { BrandForm } from "@/components/stores/BrandForm";
 import { BrandList } from "@/components/stores/BrandList";
-import { StoreForm } from "@/components/stores/StoreForm";
 import { StoreList } from "@/components/stores/StoreList";
 import { getCurrentOrgId } from "@/lib/org/current";
 import {
@@ -23,7 +22,7 @@ export default async function StoresPage() {
   return (
     <>
       <AppHeader />
-      <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-10">
+      <main className="mx-auto max-w-[1600px] px-4 py-6 sm:px-6 sm:py-10">
         <h1 className="text-xl font-semibold text-neutral-900 sm:text-2xl">
           매장 관리
         </h1>
@@ -41,28 +40,14 @@ export default async function StoresPage() {
           </div>
         </section>
 
-        <section className="mt-4 rounded-2xl border border-neutral-200 bg-white p-4 sm:mt-6 sm:p-5">
-          <h2 className="text-sm font-semibold text-neutral-800">매장 추가</h2>
-          <div className="mt-3">
-            <StoreForm
-              brands={brands}
-              regionGroups={regionGroups}
-              orgId={orgId}
-            />
-          </div>
-        </section>
-
-        <section className="mt-4 rounded-2xl border border-neutral-200 bg-white p-4 sm:mt-6 sm:p-5">
-          <h2 className="text-sm font-semibold text-neutral-800">매장 목록</h2>
-          <div className="mt-3">
-            <StoreList
-              stores={stores}
-              brands={brands}
-              regionGroups={regionGroups}
-              orgId={orgId}
-            />
-          </div>
-        </section>
+        <div className="mt-4 sm:mt-6">
+          <StoreList
+            stores={stores}
+            brands={brands}
+            regionGroups={regionGroups}
+            orgId={orgId}
+          />
+        </div>
       </main>
     </>
   );
