@@ -157,7 +157,7 @@ export function VisitPanel({
 
   if (!date) {
     return (
-      <aside className="flex items-center justify-center rounded-2xl border border-dashed border-neutral-300 bg-white p-10 text-center text-sm text-neutral-400">
+      <aside className="flex items-center justify-center rounded-2xl border border-dashed border-neutral-300 bg-white p-10 text-center text-sm text-neutral-400 lg:h-full">
         캘린더에서 날짜를 선택하세요
       </aside>
     );
@@ -167,14 +167,15 @@ export function VisitPanel({
   const selectedRegion = regionGroups.find((g) => g.id === regionGroupId);
 
   return (
-    <aside className="rounded-2xl border border-neutral-200 bg-white">
-      <header className="border-b border-neutral-100 px-5 py-4">
+    <aside className="rounded-2xl border border-neutral-200 bg-white lg:flex lg:h-full lg:flex-col lg:overflow-hidden">
+      <header className="border-b border-neutral-100 px-5 py-4 lg:shrink-0">
         <h2 className="text-base font-semibold text-neutral-900">
           {format(date, "yyyy년 M월 d일 (E)", { locale: ko })}
         </h2>
         <p className="mt-0.5 text-xs text-neutral-500">방문 {visits.length}건</p>
       </header>
 
+      <div className="lg:flex-1 lg:min-h-0 lg:overflow-y-auto">
       <section className="px-5 py-4">
         {visits.length === 0 ? (
           <p className="py-4 text-center text-xs text-neutral-400">
@@ -353,6 +354,7 @@ export function VisitPanel({
         </div>
         {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
       </section>
+      </div>
 
       {memoVisit && (
         <VisitMemoModal
