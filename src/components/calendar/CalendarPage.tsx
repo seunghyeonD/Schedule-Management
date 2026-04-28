@@ -50,7 +50,7 @@ export function CalendarPage({
   currentUserId,
 }: Props) {
   const [month, setMonth] = useState<Date>(new Date());
-  const [selected, setSelected] = useState<Date | null>(null);
+  const [selected, setSelected] = useState<Date | null>(() => new Date());
   const dirtyRef = useRef<(() => void) | null>(null);
   const markDirty = () => dirtyRef.current?.();
 
@@ -71,6 +71,7 @@ export function CalendarPage({
   const gridStart = startOfWeek(monthStart, { weekStartsOn: 0 });
   const gridEnd = endOfWeek(monthEnd, { weekStartsOn: 0 });
   const days = eachDayOfInterval({ start: gridStart, end: gridEnd });
+  const weekCount = days.length / 7;
 
   const visitsByDate = useMemo(() => {
     const map = new Map<string, VisitCell[]>();
@@ -147,7 +148,7 @@ export function CalendarPage({
   };
 
   return (
-    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[380px_1fr]">
+    <div className="grid grid-cols-1 gap-6 lg:h-full lg:grid-cols-[460px_1fr]">
       <VisitPanel
         date={selected}
         visits={selectedVisits}
@@ -160,7 +161,7 @@ export function CalendarPage({
         onChange={markDirty}
       />
 
-      <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white">
+      <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white lg:flex lg:h-full lg:flex-col lg:min-h-0">
         <div className="flex items-center justify-between gap-2 border-b border-neutral-100 px-3 py-2.5 sm:px-4 sm:py-3">
           <div className="flex items-center gap-1 sm:gap-2">
             <button
@@ -217,7 +218,10 @@ export function CalendarPage({
           ))}
         </div>
 
-        <div className="grid grid-cols-7">
+        <div
+          className="grid grid-cols-7 lg:flex-1 lg:min-h-0"
+          style={{ gridTemplateRows: `repeat(${weekCount}, minmax(0, 1fr))` }}
+        >
           {days.map((day) => {
             const key = format(day, "yyyy-MM-dd");
             const inMonth = isSameMonth(day, month);
@@ -230,7 +234,7 @@ export function CalendarPage({
               <button
                 key={key}
                 onClick={() => setSelected(day)}
-                className={`group relative min-h-[72px] border-b border-r border-neutral-100 p-1.5 text-left transition sm:min-h-[108px] sm:p-2 ${
+                className={`group relative min-h-[72px] border-b border-r border-neutral-100 p-1.5 text-left transition sm:min-h-[120px] sm:p-2.5 lg:min-h-0 ${
                   isSelected
                     ? "bg-blue-50 ring-2 ring-inset ring-blue-400"
                     : "hover:bg-neutral-50"
