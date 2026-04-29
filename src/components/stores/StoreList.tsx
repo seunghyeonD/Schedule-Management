@@ -89,14 +89,13 @@ export function StoreList({ stores, brands, regionGroups, orgId }: Props) {
       </header>
 
       {showForm ? (
-        <div className="px-5 py-4">
-          <StoreForm
-            brands={brands}
-            regionGroups={regionGroups}
-            orgId={orgId}
-            onCreated={() => setShowForm(false)}
-          />
-        </div>
+        <StoreForm
+          brands={brands}
+          regionGroups={regionGroups}
+          orgId={orgId}
+          submitLabel="완료"
+          onCreated={() => setShowForm(false)}
+        />
       ) : (
         <div className="px-5 py-4">
           <div className="flex flex-wrap items-center gap-2 pb-3">
