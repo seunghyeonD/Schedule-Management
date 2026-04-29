@@ -351,104 +351,93 @@ export function StoreForm({
       className={
         submitFullWidth
           ? "flex h-full min-h-0 flex-col"
-          : "space-y-4"
+          : "flex flex-col"
       }
     >
       <div
         className={
           submitFullWidth
-            ? "flex-1 space-y-4 overflow-y-auto overflow-x-hidden px-5 py-4"
-            : "contents"
+            ? "flex-1 space-y-5 overflow-y-auto overflow-x-hidden px-5 py-4"
+            : "space-y-5 px-5 py-4"
         }
       >
-      <div className="space-y-4">
-        <Field label="브랜드">
-          {addingBrand ? (
-            <div className="flex gap-2">
-              <input
-                value={newBrandName}
-                onChange={(e) => setNewBrandName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    handleAddBrand();
-                  }
+      <Field label="브랜드">
+        {addingBrand ? (
+          <div className="flex gap-2">
+            <input
+              value={newBrandName}
+              onChange={(e) => setNewBrandName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  handleAddBrand();
+                }
+              }}
+              placeholder="새 브랜드명 (예: 아리따움)"
+              autoFocus
+              disabled={brandPending}
+              className="flex-1 rounded-md border border-neutral-300 px-3 py-2 text-sm"
+            />
+            <button
+              type="button"
+              onClick={handleAddBrand}
+              disabled={brandPending || !newBrandName.trim()}
+              className="shrink-0 rounded-md bg-neutral-900 px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
+            >
+              {brandPending ? "추가 중…" : "추가"}
+            </button>
+            {brands.length > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  setAddingBrand(false);
+                  setNewBrandName("");
+                  setBrandError(null);
                 }}
-                placeholder="새 브랜드명 (예: 아리따움)"
-                autoFocus
                 disabled={brandPending}
-                className="flex-1 rounded-md border border-neutral-300 px-3 py-2 text-sm"
-              />
-              <button
-                type="button"
-                onClick={handleAddBrand}
-                disabled={brandPending || !newBrandName.trim()}
-                className="shrink-0 rounded-md bg-neutral-900 px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
+                className="shrink-0 rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-600 hover:bg-neutral-50 disabled:opacity-50"
               >
-                {brandPending ? "추가 중…" : "추가"}
+                취소
               </button>
-              {brands.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAddingBrand(false);
-                    setNewBrandName("");
-                    setBrandError(null);
-                  }}
-                  disabled={brandPending}
-                  className="shrink-0 rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-600 hover:bg-neutral-50 disabled:opacity-50"
-                >
-                  취소
-                </button>
-              )}
-            </div>
-          ) : (
-            <div className="flex gap-2">
-              <select
-                value={brandId}
-                onChange={(e) => setBrandId(e.target.value)}
-                className="flex-1 rounded-md border border-neutral-300 px-3 py-2 text-sm"
-              >
-                {brands.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.name}
-                  </option>
-                ))}
-              </select>
-              <button
-                type="button"
-                onClick={() => setAddingBrand(true)}
-                className="shrink-0 rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-700 hover:bg-neutral-50"
-              >
-                + 새 브랜드
-              </button>
-            </div>
-          )}
-          {brandError && (
-            <p className="mt-1 text-xs text-red-600">{brandError}</p>
-          )}
-          {brands.length > 0 && (
-            <div className="mt-2">
-              <BrandList brands={brands} />
-            </div>
-          )}
-        </Field>
-
-        <Field label="매장명">
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="예: NC강남점"
-            className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
-          />
-        </Field>
-      </div>
+            )}
+          </div>
+        ) : (
+          <div className="flex gap-2">
+            <select
+              value={brandId}
+              onChange={(e) => setBrandId(e.target.value)}
+              className="flex-1 rounded-md border border-neutral-300 px-3 py-2 text-sm"
+            >
+              {brands.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={() => setAddingBrand(true)}
+              className="shrink-0 rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-700 hover:bg-neutral-50"
+            >
+              + 새 브랜드
+            </button>
+          </div>
+        )}
+        {brandError && (
+          <p className="mt-1 text-xs text-red-600">{brandError}</p>
+        )}
+        {brands.length > 0 && (
+          <div className="mt-2">
+            <BrandList brands={brands} />
+          </div>
+        )}
+      </Field>
 
       <Field label="주소">
         <button
           type="button"
           onClick={openModal}
-          className="flex w-full items-center justify-between rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-left text-sm hover:border-neutral-400"
+          className="flex w-full items-center justify-between rounded-md border border-neutral-300 bg-white px-3 py-2 text-left text-sm hover:border-neutral-400"
         >
           <span className={address ? "text-neutral-900" : "text-neutral-400"}>
             {address || "클릭해서 상호명 또는 주소로 검색하세요"}
@@ -582,29 +571,38 @@ export function StoreForm({
         </div>
       )}
 
+      <Field label="매장명">
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="예: NC강남점"
+          className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
+        />
+      </Field>
+
       <Field label="상세 주소 (선택)">
         <input
           value={addressDetail}
           onChange={(e) => setAddressDetail(e.target.value)}
           placeholder="건물명/층/호수"
-          className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
+          className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
         />
       </Field>
 
       {(sido || sigungu) && (
-        <div className="space-y-4">
+        <div className="space-y-5">
           <Field label="시/도">
             <input
               value={sido}
               readOnly
-              className="w-full rounded-md border border-neutral-300 bg-neutral-50 px-3 py-1.5 text-sm"
+              className="w-full rounded-md border border-neutral-300 bg-neutral-50 px-3 py-2 text-sm"
             />
           </Field>
           <Field label="시/군/구">
             <input
               value={sigungu}
               readOnly
-              className="w-full rounded-md border border-neutral-300 bg-neutral-50 px-3 py-1.5 text-sm"
+              className="w-full rounded-md border border-neutral-300 bg-neutral-50 px-3 py-2 text-sm"
             />
           </Field>
           <Field
@@ -616,7 +614,7 @@ export function StoreForm({
                 setRegionGroupId(e.target.value);
                 setAutoMatched(false);
               }}
-              className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
+              className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
             >
               <option value="">- 선택 -</option>
               {regionGroups.map((g) => (
@@ -675,31 +673,18 @@ export function StoreForm({
       </Field>
       </div>
 
-      {submitFullWidth ? (
-        <div className="shrink-0 border-t border-neutral-100 bg-white px-5 py-3">
-          {error && (
-            <p className="mb-2 text-center text-xs text-red-600">{error}</p>
-          )}
-          <button
-            type="submit"
-            disabled={isPending || !name || !address || !brandId}
-            className="w-full rounded-lg bg-neutral-900 px-4 py-3 text-base font-semibold text-white shadow-sm transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {isPending ? "저장 중…" : submitLabel}
-          </button>
-        </div>
-      ) : (
-        <div className="flex items-center justify-between">
-          {error && <p className="text-xs text-red-600">{error}</p>}
-          <button
-            type="submit"
-            disabled={isPending || !name || !address || !brandId}
-            className="ml-auto rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-          >
-            {isPending ? "저장 중…" : submitLabel}
-          </button>
-        </div>
-      )}
+      <div className="shrink-0 border-t border-neutral-100 bg-white px-5 py-3">
+        {error && (
+          <p className="mb-2 text-center text-xs text-red-600">{error}</p>
+        )}
+        <button
+          type="submit"
+          disabled={isPending || !name || !address || !brandId}
+          className="w-full rounded-lg bg-neutral-900 px-4 py-3 text-base font-semibold text-white shadow-sm transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {isPending ? "저장 중…" : submitLabel}
+        </button>
+      </div>
     </form>
   );
 }
