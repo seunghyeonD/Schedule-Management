@@ -235,12 +235,12 @@ export function StoreEditModal({
           </button>
         </header>
 
-        <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
+        <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
           <Field label="브랜드">
             <select
               value={brandId}
               onChange={(e) => setBrandId(e.target.value)}
-              className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
+              className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
             >
               {brands.map((b) => (
                 <option key={b.id} value={b.id}>
@@ -250,19 +250,19 @@ export function StoreEditModal({
             </select>
           </Field>
 
-          <Field label="매장명">
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
-            />
-          </Field>
-
           <Field label="주소">
             <input
               value={address}
               onChange={(e) => setAddress(e.target.value)}
-              className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
+              className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
+            />
+          </Field>
+
+          <Field label="매장명">
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
             />
           </Field>
 
@@ -271,7 +271,7 @@ export function StoreEditModal({
               value={addressDetail}
               onChange={(e) => setAddressDetail(e.target.value)}
               placeholder="건물명/층/호수"
-              className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
+              className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
             />
           </Field>
 
@@ -279,21 +279,21 @@ export function StoreEditModal({
             <input
               value={sido}
               onChange={(e) => setSido(e.target.value)}
-              className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
+              className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
             />
           </Field>
           <Field label="시/군/구">
             <input
               value={sigungu}
               onChange={(e) => setSigungu(e.target.value)}
-              className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
+              className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
             />
           </Field>
           <Field label="지역 그룹">
             <select
               value={regionGroupId}
               onChange={(e) => setRegionGroupId(e.target.value)}
-              className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
+              className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
             >
               <option value="">- 선택 -</option>
               {regionGroups.map((g) => (
@@ -364,23 +364,16 @@ export function StoreEditModal({
           )}
         </div>
 
-        <footer className="flex items-center justify-end gap-2 border-t border-neutral-200 bg-neutral-50 px-5 py-3">
-          <button
-            type="button"
-            onClick={handleClose}
-            className="rounded-md border border-neutral-300 bg-white px-4 py-1.5 text-sm text-neutral-700 hover:bg-neutral-50"
-          >
-            취소
-          </button>
+        <div className="shrink-0 border-t border-neutral-100 bg-white px-5 py-3">
           <button
             type="button"
             onClick={handleSave}
             disabled={!canSave}
-            className="rounded-md bg-neutral-900 px-4 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+            className="w-full rounded-lg bg-neutral-900 px-4 py-3 text-base font-semibold text-white shadow-sm transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {isPending ? "저장 중…" : "저장"}
+            {isPending ? "저장 중…" : "완료"}
           </button>
-        </footer>
+        </div>
       </div>
     </div>
   );
