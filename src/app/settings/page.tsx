@@ -28,11 +28,15 @@ export default async function SettingsPage() {
     name: string;
     spreadsheet_id: string | null;
     spreadsheet_url: string | null;
+    calendar_spreadsheet_id: string | null;
+    calendar_spreadsheet_url: string | null;
   } | null = null;
   if (orgId) {
     const { data: org } = await supabase
       .from("organizations")
-      .select("name, spreadsheet_id, spreadsheet_url")
+      .select(
+        "name, spreadsheet_id, spreadsheet_url, calendar_spreadsheet_id, calendar_spreadsheet_url",
+      )
       .eq("id", orgId)
       .maybeSingle();
     if (org) orgInfo = org;
@@ -119,6 +123,31 @@ export default async function SettingsPage() {
             </p>
           )}
         </section>
+
+        {isMaster && orgInfo?.spreadsheet_id && (
+          <section className="mt-4 rounded-2xl border border-neutral-200 bg-white p-4 sm:mt-6 sm:p-5">
+            <div className="mb-4">
+              <h2 className="text-sm font-semibold text-neutral-800">
+                캘린더 시트 분리
+              </h2>
+              <p className="mt-1 text-xs text-neutral-500">
+                연결하면 월별 캘린더 탭(예: <em>2026년 1월</em>)이 별도의 시트에
+                만들어지고, 위의 시트에는 브랜드별 로그 탭만 갱신됩니다.
+              </p>
+              <p className="mt-1 text-xs text-amber-700">
+                기존 시트에 있던 <em>YYYY년 N월</em> 탭은 더 이상 자동으로
+                업데이트되지 않으니 직접 삭제해 주세요.
+              </p>
+            </div>
+            <SheetConnect
+              slot="calendar"
+              showSyncButton={false}
+              spreadsheetId={orgInfo.calendar_spreadsheet_id ?? null}
+              spreadsheetUrl={orgInfo.calendar_spreadsheet_url ?? null}
+              hasGoogleToken={!!profile?.google_refresh_token}
+            />
+          </section>
+        )}
 
         <section className="mt-4 rounded-2xl border border-neutral-200 bg-white p-4 sm:mt-6 sm:p-5">
           <h2 className="text-sm font-semibold text-neutral-800">글자 크기</h2>
