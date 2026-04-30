@@ -20,6 +20,7 @@ type Row = {
   key: string;
   product_name: string;
   quantity: string;
+  is_completed: boolean;
 };
 
 // 임시 row id 생성 (DB key 와 분리, 클라 입력 추적용)
@@ -30,6 +31,7 @@ const blankRow = (): Row => ({
   key: newKey(),
   product_name: "",
   quantity: "",
+  is_completed: false,
 });
 
 export function VisitOrderModal({
@@ -63,6 +65,7 @@ export function VisitOrderModal({
           key: i.id,
           product_name: i.product_name,
           quantity: String(i.quantity ?? ""),
+          is_completed: !!i.is_completed,
         }));
       const r = items
         .filter((i) => i.kind === "return")
@@ -70,6 +73,7 @@ export function VisitOrderModal({
           key: i.id,
           product_name: i.product_name,
           quantity: String(i.quantity ?? ""),
+          is_completed: !!i.is_completed,
         }));
       setOrders(o.length > 0 ? o : [blankRow()]);
       setReturns(r.length > 0 ? r : [blankRow()]);
@@ -96,6 +100,16 @@ export function VisitOrderModal({
   ) {
     setRows((prev) =>
       prev.map((r) => (r.key === key ? { ...r, [field]: value } : r)),
+    );
+  }
+
+  function toggleCompleted(
+    setRows: React.Dispatch<React.SetStateAction<Row[]>>,
+    key: string,
+    next: boolean,
+  ) {
+    setRows((prev) =>
+      prev.map((r) => (r.key === key ? { ...r, is_completed: next } : r)),
     );
   }
 
@@ -126,6 +140,7 @@ export function VisitOrderModal({
           kind,
           product_name: r.product_name.trim(),
           quantity: r.quantity.trim(),
+          is_completed: r.is_completed,
           sort_order: idx,
         }))
         .filter((r) => r.product_name.length > 0);
@@ -197,6 +212,9 @@ export function VisitOrderModal({
                 onChange={(key, field, value) =>
                   updateRow(setOrders, key, field, value)
                 }
+                onToggleCompleted={(key, next) =>
+                  toggleCompleted(setOrders, key, next)
+                }
                 onRemove={(key) => removeRow(setOrders, orders, key)}
                 onAdd={() => addRow(setOrders)}
               />
@@ -209,6 +227,9 @@ export function VisitOrderModal({
                 readOnly={readOnly}
                 onChange={(key, field, value) =>
                   updateRow(setReturns, key, field, value)
+                }
+                onToggleCompleted={(key, next) =>
+                  toggleCompleted(setReturns, key, next)
                 }
                 onRemove={(key) => removeRow(setReturns, returns, key)}
                 onAdd={() => addRow(setReturns)}
@@ -252,6 +273,7 @@ function Section({
   rows,
   readOnly,
   onChange,
+  onToggleCompleted,
   onRemove,
   onAdd,
 }: {
@@ -263,6 +285,7 @@ function Section({
     field: "product_name" | "quantity",
     value: string,
   ) => void;
+  onToggleCompleted: (key: string, next: boolean) => void;
   onRemove: (key: string) => void;
   onAdd: () => void;
 }) {
@@ -271,13 +294,13 @@ function Section({
       <h4 className="mb-2 text-sm font-semibold text-neutral-800">{title}</h4>
       <ul className="space-y-2">
         {rows.map((r) => (
-          <li key={r.key} className="flex items-center gap-2">
+          <li key={r.key} className="flex flex-wrap items-center gap-2">
             <input
               value={r.product_name}
               onChange={(e) => onChange(r.key, "product_name", e.target.value)}
               placeholder="상품명"
               readOnly={readOnly}
-              className="flex-1 rounded-md border border-neutral-300 px-3 py-1.5 text-sm read-only:bg-neutral-50 read-only:text-neutral-700"
+              className="min-w-0 flex-1 rounded-md border border-neutral-300 px-3 py-1.5 text-sm read-only:bg-neutral-50 read-only:text-neutral-700"
             />
             <input
               value={r.quantity}
@@ -286,6 +309,22 @@ function Section({
               readOnly={readOnly}
               className="w-24 rounded-md border border-neutral-300 px-3 py-1.5 text-sm read-only:bg-neutral-50 read-only:text-neutral-700"
             />
+            <label
+              className={`inline-flex shrink-0 items-center gap-1 rounded-md border px-2 py-1 text-xs transition ${
+                r.is_completed
+                  ? "border-emerald-300 bg-emerald-50 text-emerald-700"
+                  : "border-neutral-200 bg-white text-neutral-500"
+              } ${readOnly ? "pointer-events-none opacity-70" : "cursor-pointer hover:border-neutral-400"}`}
+            >
+              <input
+                type="checkbox"
+                checked={r.is_completed}
+                onChange={(e) => onToggleCompleted(r.key, e.target.checked)}
+                disabled={readOnly}
+                className="h-3.5 w-3.5 accent-emerald-600"
+              />
+              주문완료
+            </label>
             {!readOnly && (
               <button
                 type="button"
