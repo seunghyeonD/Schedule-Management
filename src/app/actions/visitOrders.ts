@@ -11,6 +11,7 @@ export type VisitOrderItem = {
   kind: "order" | "return";
   product_name: string;
   quantity: string;
+  is_completed: boolean;
   sort_order: number;
 };
 
@@ -20,7 +21,7 @@ export async function getVisitOrderItems(
   const supabase = createClient();
   const { data, error } = await supabase
     .from("visit_order_items")
-    .select("id, visit_id, kind, product_name, quantity, sort_order")
+    .select("id, visit_id, kind, product_name, quantity, is_completed, sort_order")
     .eq("visit_id", visitId)
     .order("kind", { ascending: true })
     .order("sort_order", { ascending: true });
@@ -36,7 +37,7 @@ export async function getOrderItemsForVisits(
   const supabase = createClient();
   const { data, error } = await supabase
     .from("visit_order_items")
-    .select("id, visit_id, kind, product_name, quantity, sort_order")
+    .select("id, visit_id, kind, product_name, quantity, is_completed, sort_order")
     .in("visit_id", visitIds)
     .order("kind", { ascending: true })
     .order("sort_order", { ascending: true });
@@ -49,6 +50,7 @@ const itemSchema = z.object({
   kind: z.enum(["order", "return"]),
   product_name: z.string().trim().min(1, "상품명을 입력하세요").max(200),
   quantity: z.string().trim().max(100),
+  is_completed: z.boolean(),
   sort_order: z.number().int().min(0).max(10_000),
 });
 
@@ -102,6 +104,7 @@ export async function saveVisitOrderItems(
       kind: it.kind,
       product_name: it.product_name,
       quantity: it.quantity,
+      is_completed: it.is_completed,
       sort_order: it.sort_order,
     }));
     const { error: insErr } = await supabase
