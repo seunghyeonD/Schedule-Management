@@ -62,14 +62,14 @@ export function VisitOrderModal({
         .map((i) => ({
           key: i.id,
           product_name: i.product_name,
-          quantity: String(i.quantity),
+          quantity: i.quantity,
         }));
       const r = items
         .filter((i) => i.kind === "return")
         .map((i) => ({
           key: i.id,
           product_name: i.product_name,
-          quantity: String(i.quantity),
+          quantity: i.quantity,
         }));
       setOrders(o.length > 0 ? o : [blankRow()]);
       setReturns(r.length > 0 ? r : [blankRow()]);
@@ -125,20 +125,12 @@ export function VisitOrderModal({
         .map((r, idx) => ({
           kind,
           product_name: r.product_name.trim(),
-          quantity: r.quantity.trim() === "" ? 0 : Number(r.quantity),
+          quantity: r.quantity.trim(),
           sort_order: idx,
         }))
         .filter((r) => r.product_name.length > 0);
 
     const items = [...collect(orders, "order"), ...collect(returns, "return")];
-
-    // 수량이 정수가 아니면 거부
-    for (const it of items) {
-      if (!Number.isInteger(it.quantity) || it.quantity < 0) {
-        setError(`수량은 0 이상의 정수여야 합니다: ${it.product_name}`);
-        return;
-      }
-    }
 
     startTransition(async () => {
       const res = await saveVisitOrderItems({
@@ -291,10 +283,8 @@ function Section({
               value={r.quantity}
               onChange={(e) => onChange(r.key, "quantity", e.target.value)}
               placeholder="수량"
-              inputMode="numeric"
-              pattern="[0-9]*"
               readOnly={readOnly}
-              className="w-24 rounded-md border border-neutral-300 px-3 py-1.5 text-sm tabular-nums read-only:bg-neutral-50 read-only:text-neutral-700"
+              className="w-24 rounded-md border border-neutral-300 px-3 py-1.5 text-sm read-only:bg-neutral-50 read-only:text-neutral-700"
             />
             {!readOnly && (
               <button
