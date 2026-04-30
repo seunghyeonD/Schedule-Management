@@ -226,7 +226,9 @@ async function getOrgSheetContext() {
 
   const { data: org, error: orgErr } = await supabase
     .from("organizations")
-    .select("id, name, spreadsheet_id, spreadsheet_url, spreadsheet_managed")
+    .select(
+      "id, name, spreadsheet_id, spreadsheet_url, spreadsheet_managed, calendar_spreadsheet_id, calendar_spreadsheet_url, calendar_spreadsheet_managed",
+    )
     .eq("id", orgId)
     .maybeSingle();
   if (orgErr) throw orgErr;
@@ -365,6 +367,130 @@ export async function disconnectSpreadsheet() {
       spreadsheet_id: null,
       spreadsheet_url: null,
       spreadsheet_managed: false,
+      // 로그 시트 해제 시 캘린더 분리 모드도 함께 해제 — 분리 모드는 로그 시트가 전제
+      calendar_spreadsheet_id: null,
+      calendar_spreadsheet_url: null,
+      calendar_spreadsheet_managed: false,
+    })
+    .eq("id", orgId);
+
+  revalidatePath("/settings");
+  return { ok: true };
+}
+
+// 분리 모드용 캘린더 시트 — 새로 생성
+export async function createNewCalendarSpreadsheet(title?: string) {
+  try {
+    const { accessToken, supabase, orgId, org } = await getOrgSheetContext();
+    if (!(await isCurrentUserMaster(orgId))) {
+      return { error: "마스터만 시트를 연결할 수 있습니다" };
+    }
+    if (!org.spreadsheet_id) {
+      return { error: "먼저 로그 시트를 연결해 주세요" };
+    }
+
+    const defaultTitle = `${org.name} 캘린더 (${format(new Date(), "yyyy-MM-dd")})`;
+    const sheet = await createSpreadsheet(
+      { accessToken },
+      title?.trim() || defaultTitle,
+    );
+
+    await supabase
+      .from("organizations")
+      .update({
+        calendar_spreadsheet_id: sheet.spreadsheetId,
+        calendar_spreadsheet_url: sheet.spreadsheetUrl,
+        calendar_spreadsheet_managed: true,
+      })
+      .eq("id", orgId);
+
+    revalidatePath("/settings");
+    revalidatePath("/");
+    return { ok: true, url: sheet.spreadsheetUrl };
+  } catch (e) {
+    return { error: (e as Error).message };
+  }
+}
+
+// 분리 모드용 캘린더 시트 — 기존 시트 연결 (URL/ID)
+export async function connectExistingCalendarSpreadsheet(urlOrId: string) {
+  const input = urlOrId.trim();
+  if (!input) return { error: "URL 또는 ID를 입력하세요" };
+
+  const urlMatch = input.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+  const spreadsheetId = urlMatch?.[1] ?? input;
+  if (!/^[a-zA-Z0-9-_]{20,}$/.test(spreadsheetId)) {
+    return { error: "올바른 Google Sheets URL 또는 ID가 아닙니다" };
+  }
+
+  try {
+    const { accessToken, supabase, orgId, org } = await getOrgSheetContext();
+    if (!(await isCurrentUserMaster(orgId))) {
+      return { error: "마스터만 시트를 연결할 수 있습니다" };
+    }
+    if (!org.spreadsheet_id) {
+      return { error: "먼저 로그 시트를 연결해 주세요" };
+    }
+    if (org.spreadsheet_id === spreadsheetId) {
+      return { error: "로그 시트와 동일한 시트는 캘린더 시트로 사용할 수 없습니다" };
+    }
+
+    const meta = (await getSpreadsheet(
+      { accessToken },
+      spreadsheetId,
+    )) as { properties: { title: string }; spreadsheetUrl: string };
+
+    await supabase
+      .from("organizations")
+      .update({
+        calendar_spreadsheet_id: spreadsheetId,
+        calendar_spreadsheet_url: meta.spreadsheetUrl,
+        calendar_spreadsheet_managed: false,
+      })
+      .eq("id", orgId);
+
+    revalidatePath("/settings");
+    revalidatePath("/");
+    return {
+      ok: true,
+      title: meta.properties.title,
+      url: meta.spreadsheetUrl,
+    };
+  } catch (e) {
+    const msg = (e as Error).message;
+    if (msg.includes("404") || msg.includes("403")) {
+      return {
+        error:
+          "시트에 접근할 수 없습니다. 본인 계정의 시트가 맞는지, URL이 정확한지 확인하세요.",
+      };
+    }
+    return { error: msg };
+  }
+}
+
+export async function connectPickedCalendarSpreadsheet(spreadsheetId: string) {
+  return connectExistingCalendarSpreadsheet(spreadsheetId);
+}
+
+export async function disconnectCalendarSpreadsheet() {
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "로그인이 필요합니다" };
+
+  const orgId = await getCurrentOrgId();
+  if (!orgId) return { error: "기업이 선택되지 않았습니다" };
+  if (!(await isCurrentUserMaster(orgId))) {
+    return { error: "마스터만 시트를 해제할 수 있습니다" };
+  }
+
+  await supabase
+    .from("organizations")
+    .update({
+      calendar_spreadsheet_id: null,
+      calendar_spreadsheet_url: null,
+      calendar_spreadsheet_managed: false,
     })
     .eq("id", orgId);
 
@@ -782,25 +908,58 @@ export async function syncVisitsToSheets() {
       }
     }
 
-    // 로그 탭 + 캘린더 탭만 보장. 과거의 브랜드명 요약 탭이 남아있으면 정리.
+    // 분리 모드: 캘린더 시트가 별도로 연결돼 있으면 캘린더 탭은 그쪽으로 라우팅
+    const useSplit = !!org.calendar_spreadsheet_id;
+    const logSpreadsheetId = org.spreadsheet_id;
+    const calSpreadsheetId = useSplit
+      ? (org.calendar_spreadsheet_id as string)
+      : org.spreadsheet_id;
+    const logManaged = org.spreadsheet_managed ?? false;
+    const calManaged = useSplit
+      ? (org.calendar_spreadsheet_managed ?? false)
+      : logManaged;
+
+    // 로그 탭 보장 (브랜드명 단독 요약 탭 잔존분 정리). 분리 모드에서는 캘린더 탭은 여기서 만들지 않음.
     await syncSpreadsheetTabs(
       accessToken,
-      org.spreadsheet_id,
-      [...allTabNames, ...calendarTabs],
-      org.spreadsheet_managed ?? false,
+      logSpreadsheetId,
+      useSplit ? allTabNames : [...allTabNames, ...calendarTabs],
+      logManaged,
       brandNames,
     );
+
+    // 분리 모드면 캘린더 시트에도 캘린더 탭 보장
+    if (useSplit) {
+      await syncSpreadsheetTabs(
+        accessToken,
+        calSpreadsheetId,
+        calendarTabs,
+        calManaged,
+        [],
+      );
+    }
 
     // 새로 만든 탭들의 sheetId를 알아야 캘린더 포맷팅이 가능해서 메타 재조회
     const metaAfter = (await getSpreadsheet(
       { accessToken },
-      org.spreadsheet_id,
+      logSpreadsheetId,
     )) as {
       sheets: { properties: { sheetId: number; title: string } }[];
     };
     const sheetIdByTitle = new Map(
       metaAfter.sheets.map((s) => [s.properties.title, s.properties.sheetId]),
     );
+
+    const metaCal = useSplit
+      ? ((await getSpreadsheet({ accessToken }, calSpreadsheetId)) as {
+          sheets: { properties: { sheetId: number; title: string } }[];
+        })
+      : metaAfter;
+    const sheetIdByTitleCal = useSplit
+      ? new Map(
+          metaCal.sheets.map((s) => [s.properties.title, s.properties.sheetId]),
+        )
+      : sheetIdByTitle;
 
     // 각 브랜드 로그 탭의 데이터 행 수 + 사진 컬럼 수 (배치 차원 조정용)
     const logRowCounts = new Map<string, number>();
@@ -926,25 +1085,28 @@ export async function syncVisitsToSheets() {
       const logName = logTabName(brandName);
       await clearValues(
         { accessToken },
-        org.spreadsheet_id,
+        logSpreadsheetId,
         `'${logName}'!A:Z`,
       );
       await writeValues(
         { accessToken },
-        org.spreadsheet_id,
+        logSpreadsheetId,
         `'${logName}'!A1`,
         logRows,
       );
     }
 
     // ───────── 월별 캘린더 탭: 사전 생성된 모든 달에 그리드 + 방문 데이터 쓰기 ─────────
-    // 정렬: 브랜드/로그 탭 뒤에 시간순으로 배치.
+    // 분리 모드면 캘린더 시트의 비-캘린더 탭(주로 "시트1")을 기준으로 정렬,
+    // 통합 모드면 로그 시트의 비-캘린더 탭(브랜드 로그 탭들) 뒤에 배치.
     const calendarTabSet = new Set(calendarTabs);
-    const nonCalendarCount = metaAfter.sheets.filter(
+    const nonCalendarCount = metaCal.sheets.filter(
       (s) => !calendarTabSet.has(s.properties.title),
     ).length;
 
-    const calendarBatchRequests: unknown[] = [];
+    // 로그 시트용 배치(필터·컬럼폭·행높이)와 캘린더 시트용 배치(그리드 작성)를 분리 누적
+    const logBatchRequests: unknown[] = [];
+    const calBatchRequests: unknown[] = [];
 
     // 0) 각 브랜드 로그 탭: 기본 필터 + 매장/방문 사진 컬럼 폭/행 높이
     for (const brandName of brandNames) {
@@ -961,7 +1123,7 @@ export async function syncVisitsToSheets() {
         visitPhotoCount;
 
       // 기본 필터 (모든 컬럼 헤더에서 필터/정렬 가능)
-      calendarBatchRequests.push({
+      logBatchRequests.push({
         setBasicFilter: {
           filter: {
             range: {
@@ -976,7 +1138,7 @@ export async function syncVisitsToSheets() {
 
       // 매장 사진 컬럼 폭
       if (storePhotoCount > 0) {
-        calendarBatchRequests.push({
+        logBatchRequests.push({
           updateDimensionProperties: {
             range: {
               sheetId: logSheetId,
@@ -993,7 +1155,7 @@ export async function syncVisitsToSheets() {
       // 방문 사진 컬럼 폭
       if (visitPhotoCount > 0) {
         const start = visitPhotoColStart(storePhotoCount);
-        calendarBatchRequests.push({
+        logBatchRequests.push({
           updateDimensionProperties: {
             range: {
               sheetId: logSheetId,
@@ -1011,7 +1173,7 @@ export async function syncVisitsToSheets() {
       const dataRowCount = logRowCounts.get(brandName) ?? 0;
       const anyPhoto = storePhotoCount > 0 || visitPhotoCount > 0;
       if (dataRowCount > 0 && anyPhoto) {
-        calendarBatchRequests.push({
+        logBatchRequests.push({
           updateDimensionProperties: {
             range: {
               sheetId: logSheetId,
@@ -1028,9 +1190,9 @@ export async function syncVisitsToSheets() {
 
     // 1) 캘린더 탭들을 시간순으로 재배치
     calendarTabs.forEach((name, idx) => {
-      const sheetId = sheetIdByTitle.get(name);
+      const sheetId = sheetIdByTitleCal.get(name);
       if (sheetId === undefined) return;
-      calendarBatchRequests.push({
+      calBatchRequests.push({
         updateSheetProperties: {
           properties: { sheetId, index: nonCalendarCount + idx },
           fields: "index",
@@ -1040,7 +1202,7 @@ export async function syncVisitsToSheets() {
 
     // 2) 각 달 탭에 그리드 + 방문 데이터 쓰기 (방문 없는 달은 빈 그리드)
     for (const slot of allMonths) {
-      const sheetId = sheetIdByTitle.get(slot.tabName);
+      const sheetId = sheetIdByTitleCal.get(slot.tabName);
       if (sheetId === undefined) continue;
 
       const perDay =
@@ -1052,7 +1214,7 @@ export async function syncVisitsToSheets() {
         perDay,
       );
 
-      calendarBatchRequests.push(
+      calBatchRequests.push(
         // 기존 값 + 포맷 모두 리셋 (재싱크 시 잔여 셀 정리)
         {
           updateCells: {
@@ -1116,12 +1278,15 @@ export async function syncVisitsToSheets() {
       );
     }
 
-    if (calendarBatchRequests.length > 0) {
-      await batchUpdate(
-        { accessToken },
-        org.spreadsheet_id,
-        calendarBatchRequests,
-      );
+    if (logBatchRequests.length > 0) {
+      await batchUpdate({ accessToken }, logSpreadsheetId, logBatchRequests);
+    }
+    if (calBatchRequests.length > 0) {
+      if (useSplit) {
+        await batchUpdate({ accessToken }, calSpreadsheetId, calBatchRequests);
+      } else {
+        await batchUpdate({ accessToken }, logSpreadsheetId, calBatchRequests);
+      }
     }
 
     // 싱크 시각 업데이트 (org last_synced_at 컬럼이 없으면 무시)
