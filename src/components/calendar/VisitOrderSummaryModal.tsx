@@ -66,7 +66,9 @@ export function VisitOrderSummaryModal({ date, visits, onClose }: Props) {
   const totals = useMemo(() => {
     let orderQty = 0;
     let returnQty = 0;
+    let completedCount = 0;
     for (const it of items) {
+      if (it.is_completed) completedCount += 1;
       // 합계는 앞쪽 정수만 사용 — "6+2" → 6, "10박스" → 10, "조금" → 0
       const m = String(it.quantity ?? "").match(/^\s*(\d+)/);
       if (!m) continue;
@@ -74,7 +76,7 @@ export function VisitOrderSummaryModal({ date, visits, onClose }: Props) {
       if (it.kind === "order") orderQty += n;
       else returnQty += n;
     }
-    return { orderQty, returnQty };
+    return { orderQty, returnQty, completedCount };
   }, [items]);
 
   async function handleDownload() {
@@ -205,6 +207,7 @@ export function VisitOrderSummaryModal({ date, visits, onClose }: Props) {
                                       key={it.id}
                                       name={it.product_name}
                                       qty={it.quantity}
+                                      completed={it.is_completed}
                                     />
                                   ))}
                                 </ul>
@@ -224,6 +227,7 @@ export function VisitOrderSummaryModal({ date, visits, onClose }: Props) {
                                       key={it.id}
                                       name={it.product_name}
                                       qty={it.quantity}
+                                      completed={it.is_completed}
                                     />
                                   ))}
                                 </ul>
@@ -244,6 +248,11 @@ export function VisitOrderSummaryModal({ date, visits, onClose }: Props) {
                       <span>총 반품 수량</span>
                       <span className="tabular-nums">{totals.returnQty}</span>
                     </div>
+                    {totals.completedCount > 0 && (
+                      <p className="pt-1 text-sm text-neutral-500">
+                        주문완료 {totals.completedCount}건
+                      </p>
+                    )}
                   </div>
                 </>
               )}
@@ -279,10 +288,23 @@ export function VisitOrderSummaryModal({ date, visits, onClose }: Props) {
   );
 }
 
-function ItemLine({ name, qty }: { name: string; qty: string }) {
+function ItemLine({
+  name,
+  qty,
+  completed,
+}: {
+  name: string;
+  qty: string;
+  completed: boolean;
+}) {
   return (
     <li className="flex items-center gap-2 text-base">
       <span className="shrink-0">{name}</span>
+      {completed && (
+        <span className="shrink-0 rounded border border-emerald-300 bg-emerald-50 px-1.5 text-[11px] font-semibold text-emerald-700">
+          주문완료
+        </span>
+      )}
       <span
         aria-hidden
         className="min-w-[12px] flex-1 border-b border-dotted border-neutral-300"
