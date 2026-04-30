@@ -67,8 +67,11 @@ export function VisitOrderSummaryModal({ date, visits, onClose }: Props) {
     let orderQty = 0;
     let returnQty = 0;
     for (const it of items) {
-      if (it.kind === "order") orderQty += it.quantity;
-      else returnQty += it.quantity;
+      // 자유 텍스트 수량 — 숫자로 파싱 가능한 값만 합산, 나머지는 0 취급
+      const n = Number(it.quantity);
+      if (!Number.isFinite(n)) continue;
+      if (it.kind === "order") orderQty += n;
+      else returnQty += n;
     }
     return { orderQty, returnQty };
   }, [items]);
@@ -261,7 +264,7 @@ export function VisitOrderSummaryModal({ date, visits, onClose }: Props) {
   );
 }
 
-function ItemLine({ name, qty }: { name: string; qty: number }) {
+function ItemLine({ name, qty }: { name: string; qty: string }) {
   return (
     <li className="flex items-center gap-2 text-base">
       <span className="shrink-0">{name}</span>
