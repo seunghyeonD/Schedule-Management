@@ -67,9 +67,10 @@ export function VisitOrderSummaryModal({ date, visits, onClose }: Props) {
     let orderQty = 0;
     let returnQty = 0;
     for (const it of items) {
-      // 자유 텍스트 수량 — 숫자로 파싱 가능한 값만 합산, 나머지는 0 취급
-      const n = Number(it.quantity);
-      if (!Number.isFinite(n)) continue;
+      // 합계는 앞쪽 정수만 사용 — "6+2" → 6, "10박스" → 10, "조금" → 0
+      const m = String(it.quantity ?? "").match(/^\s*(\d+)/);
+      if (!m) continue;
+      const n = Number(m[1]);
       if (it.kind === "order") orderQty += n;
       else returnQty += n;
     }
@@ -272,7 +273,7 @@ function ItemLine({ name, qty }: { name: string; qty: string }) {
         aria-hidden
         className="min-w-[12px] flex-1 border-b border-dotted border-neutral-300"
       />
-      <span className="shrink-0 tabular-nums">x {qty}</span>
+      <span className="shrink-0 tabular-nums">{qty}</span>
     </li>
   );
 }
