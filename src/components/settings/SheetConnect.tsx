@@ -2,25 +2,51 @@
 
 import { useState, useTransition } from "react";
 import {
+  connectExistingCalendarSpreadsheet,
   connectExistingSpreadsheet,
+  createNewCalendarSpreadsheet,
   createNewSpreadsheet,
+  disconnectCalendarSpreadsheet,
   disconnectSpreadsheet,
   syncVisitsToSheets,
 } from "@/app/actions/sheets";
 import { GooglePicker } from "./GooglePicker";
 
+type Slot = "logs" | "calendar";
+
 type Props = {
   spreadsheetId: string | null;
   spreadsheetUrl: string | null;
   hasGoogleToken: boolean;
+  slot?: Slot;
+  showSyncButton?: boolean;
 };
 
 type Mode = "create" | "paste" | "pick";
+
+const ACTIONS = {
+  logs: {
+    create: createNewSpreadsheet,
+    connect: connectExistingSpreadsheet,
+    disconnect: disconnectSpreadsheet,
+    confirmDisconnect:
+      "연결된 시트를 해제할까요? (시트 자체는 삭제되지 않습니다)\n\n주의: 캘린더 분리 모드도 함께 해제됩니다.",
+  },
+  calendar: {
+    create: createNewCalendarSpreadsheet,
+    connect: connectExistingCalendarSpreadsheet,
+    disconnect: disconnectCalendarSpreadsheet,
+    confirmDisconnect:
+      "캘린더 시트를 해제할까요? 이후 동기화 시 월별 캘린더 탭은 다시 로그 시트에 생성됩니다.",
+  },
+} as const;
 
 export function SheetConnect({
   spreadsheetId,
   spreadsheetUrl,
   hasGoogleToken,
+  slot = "logs",
+  showSyncButton = true,
 }: Props) {
   const [isPending, startTransition] = useTransition();
   const [mode, setMode] = useState<Mode>("create");
@@ -32,10 +58,12 @@ export function SheetConnect({
     | null
   >(null);
 
+  const actions = ACTIONS[slot];
+
   function handleCreate() {
     setResult(null);
     startTransition(async () => {
-      const res = await createNewSpreadsheet(title);
+      const res = await actions.create(title);
       if (res.error) setResult({ type: "error", message: res.error });
       else
         setResult({
@@ -49,7 +77,7 @@ export function SheetConnect({
   function handlePaste() {
     setResult(null);
     startTransition(async () => {
-      const res = await connectExistingSpreadsheet(urlInput);
+      const res = await actions.connect(urlInput);
       if (res.error) setResult({ type: "error", message: res.error });
       else {
         setResult({
@@ -63,9 +91,9 @@ export function SheetConnect({
   }
 
   function handleDisconnect() {
-    if (!confirm("연결된 시트를 해제할까요? (시트 자체는 삭제되지 않습니다)")) return;
+    if (!confirm(actions.confirmDisconnect)) return;
     startTransition(async () => {
-      await disconnectSpreadsheet();
+      await actions.disconnect();
       setResult(null);
     });
   }
@@ -126,13 +154,15 @@ export function SheetConnect({
             </button>
           </div>
 
-          <button
-            onClick={handleSync}
-            disabled={isPending}
-            className="mt-3 w-full rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50"
-          >
-            {isPending ? "동기화 중…" : "지금 동기화"}
-          </button>
+          {showSyncButton && (
+            <button
+              onClick={handleSync}
+              disabled={isPending}
+              className="mt-3 w-full rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50"
+            >
+              {isPending ? "동기화 중…" : "지금 동기화"}
+            </button>
+          )}
         </div>
 
         {result && <ResultBox result={result} />}
@@ -180,6 +210,7 @@ export function SheetConnect({
 
       {mode === "pick" && (
         <GooglePicker
+          slot={slot}
           onPicked={(message, url) =>
             setResult({ type: "success", message, url: url ?? null })
           }
