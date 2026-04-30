@@ -62,14 +62,14 @@ export function VisitOrderModal({
         .map((i) => ({
           key: i.id,
           product_name: i.product_name,
-          quantity: i.quantity,
+          quantity: String(i.quantity ?? ""),
         }));
       const r = items
         .filter((i) => i.kind === "return")
         .map((i) => ({
           key: i.id,
           product_name: i.product_name,
-          quantity: i.quantity,
+          quantity: String(i.quantity ?? ""),
         }));
       setOrders(o.length > 0 ? o : [blankRow()]);
       setReturns(r.length > 0 ? r : [blankRow()]);
