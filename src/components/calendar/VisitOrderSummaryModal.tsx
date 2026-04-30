@@ -78,13 +78,25 @@ export function VisitOrderSummaryModal({ date, visits, onClose }: Props) {
   }, [items]);
 
   async function handleDownload() {
-    if (!receiptRef.current) return;
+    const node = receiptRef.current;
+    if (!node) return;
     setDownloading(true);
+    // 모바일 뷰포트마다 폭이 달라 캡처 시 줄바꿈/레이아웃이 달라지는 문제 방지 —
+    // 캡처 직전 고정 폭(max-w-md = 28rem = 448px)으로 강제했다가 끝나면 원복.
+    const FIXED_WIDTH_PX = 448;
+    const prevWidth = node.style.width;
+    const prevMaxWidth = node.style.maxWidth;
     try {
-      const dataUrl = await toPng(receiptRef.current, {
+      node.style.width = `${FIXED_WIDTH_PX}px`;
+      node.style.maxWidth = "none";
+      // 강제 폭 적용 후 레이아웃이 안정될 때까지 한 프레임 대기
+      await new Promise((r) => requestAnimationFrame(() => r(null)));
+      const dataUrl = await toPng(node, {
         pixelRatio: 2,
         backgroundColor: "#ffffff",
         cacheBust: true,
+        width: FIXED_WIDTH_PX,
+        height: node.scrollHeight,
       });
       const link = document.createElement("a");
       const dateStr = format(date, "yyyy-MM-dd");
@@ -95,6 +107,8 @@ export function VisitOrderSummaryModal({ date, visits, onClose }: Props) {
       console.error("[receipt download]", e);
       setError("이미지 생성에 실패했습니다");
     } finally {
+      node.style.width = prevWidth;
+      node.style.maxWidth = prevMaxWidth;
       setDownloading(false);
     }
   }
