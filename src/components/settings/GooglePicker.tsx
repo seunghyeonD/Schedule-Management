@@ -3,6 +3,7 @@
 import Script from "next/script";
 import { useCallback, useState } from "react";
 import {
+  connectPickedCalendarSpreadsheet,
   connectPickedSpreadsheet,
   getGoogleAccessTokenForClient,
 } from "@/app/actions/sheets";
@@ -48,9 +49,10 @@ type PickerResult = {
 type Props = {
   onPicked: (message: string, url?: string | null) => void;
   onError: (message: string) => void;
+  slot?: "logs" | "calendar";
 };
 
-export function GooglePicker({ onPicked, onError }: Props) {
+export function GooglePicker({ onPicked, onError, slot = "logs" }: Props) {
   const [gapiLoaded, setGapiLoaded] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -112,7 +114,10 @@ export function GooglePicker({ onPicked, onError }: Props) {
               setBusy(false);
               return;
             }
-            const res = await connectPickedSpreadsheet(picked.id);
+            const res =
+              slot === "calendar"
+                ? await connectPickedCalendarSpreadsheet(picked.id)
+                : await connectPickedSpreadsheet(picked.id);
             if (res.error) onError(res.error);
             else onPicked(`"${res.title}" 시트가 연결되었습니다`, res.url);
             setBusy(false);
