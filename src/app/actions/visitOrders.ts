@@ -10,7 +10,7 @@ export type VisitOrderItem = {
   visit_id: string;
   kind: "order" | "return";
   product_name: string;
-  quantity: number;
+  quantity: string;
   sort_order: number;
 };
 
@@ -48,7 +48,7 @@ export async function getOrderItemsForVisits(
 const itemSchema = z.object({
   kind: z.enum(["order", "return"]),
   product_name: z.string().trim().min(1, "상품명을 입력하세요").max(200),
-  quantity: z.number().int().min(0).max(1_000_000),
+  quantity: z.string().trim().max(100),
   sort_order: z.number().int().min(0).max(10_000),
 });
 
